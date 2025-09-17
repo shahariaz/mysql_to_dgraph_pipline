@@ -285,105 +285,6 @@ func exportDgraphAdvancedSchema(schema Schema, file string) error {
 		}
 	}
 
-	// ---------------- Data Export with UID Mapping ----------------
-
-// UIDMap stores table -> original ID -> UID
-type UIDMap map[string]map[string]string
-
-// Export rows as RDF with UID references for FKs and store UID mapping
-func exportDataRDFWithUID(db *sql.DB, schema Schema, rdfFile, mapFile string) error {
-	f, err := os.Create(rdfFile)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	uidMap := make(UIDMap)
-
-	for _, t := range schema.Tables {
-		uidMap[t.Name] = make(map[string]string)
-
-		rows, err := db.Query("SELECT * FROM " + t.Name)
-		if err != nil {
-			return err
-		}
-		cols, _ := rows.Columns()
-		values := make([]sql.RawBytes, len(cols))
-		scanArgs := make([]interface{}, len(cols))
-		for i := range values {
-			scanArgs[i] = &values[i]
-		}
-
-		var uidCounter int64 = 1000
-
-		for rows.Next() {
-			err = rows.Scan(scanArgs...)
-			if err != nil {
-				return err
-			}
-
-			// Use primary key as base for UID mapping
-			var pk string
-			for i, col := range cols {
-				if strings.ToLower(col) == "id" || strings.HasSuffix(strings.ToLower(col), "_id") {
-					pk = string(values[i])
-					break
-				}
-			}
-
-			if pk == "" {
-				uidCounter++
-				pk = fmt.Sprintf("%d", uidCounter)
-			}
-
-			uid := fmt.Sprintf("_:%s_%s", t.Name, pk)
-			uidMap[t.Name][pk] = uid
-
-			for i, col := range cols {
-				val := string(values[i])
-				if val == "" {
-					continue
-				}
-
-				predicate := fmt.Sprintf("<%s.%s>", t.Name, col)
-				isFK := false
-				var refTable string
-
-				for _, fk := range schema.Relationships {
-					if fk.TableName == t.Name && fk.ColumnName == col {
-						isFK = true
-						refTable = fk.RefTableName
-						break
-					}
-				}
-
-				if isFK {
-					// Replace FK with UID reference if exists
-					refUID := fmt.Sprintf("_:%s_%s", refTable, val)
-					fmt.Fprintf(f, "%s %s %s .\n", uid, predicate, refUID)
-				} else {
-					fmt.Fprintf(f, "%s %s \"%s\" .\n", uid, predicate, strings.ReplaceAll(val, "\"", "'"))
-				}
-			}
-			fmt.Fprintf(f, "%s <dgraph.type> \"%s\" .\n\n", uid, t.Name)
-		}
-		rows.Close()
-	}
-
-	// Save UID mapping
-	mf, err := os.Create(mapFile)
-	if err != nil {
-		return err
-	}
-	defer mf.Close()
-	encoder := json.NewEncoder(mf)
-	encoder.SetIndent("", "  ")
-	encoder.Encode(uidMap)
-
-	return nil
-}
-
-
 	// Outgoing FK → uid
 	for _, fk := range schema.Relationships {
 		fmt.Fprintf(f, "%s.%s: uid @reverse .\n", fk.TableName, fk.ColumnName)
@@ -501,8 +402,4 @@ func main() {
 	// Save advanced Dgraph schema
 	exportDgraphAdvancedSchema(schema, "schema.txt")
 	fmt.Println("✅ Advanced Dgraph schema exported to schema.txt")
-	// Save RDF data with UID references and mapping
-exportDataRDFWithUID(db, schema, "data.rdf", "uid_map.json")
-fmt.Println("✅ Data exported to data.rdf with UID mapping uid_map.json")
-
 }

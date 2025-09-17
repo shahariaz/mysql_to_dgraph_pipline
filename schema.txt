@@ -1,228 +1,77 @@
 # -------------------
-# chorki_content_reactions
+# chorki_video_meta
 # -------------------
-type chorki_content_reactions {
-  chorki_content_reactions.profile_id: int
-  chorki_content_reactions.type: string
-  chorki_content_reactions.customer_id: int
-  chorki_content_reactions.deleted_at: dateTime
-  chorki_content_reactions.updated_at: dateTime
-  chorki_content_reactions.aggregated: string
-  chorki_content_reactions.content_id: int
-  chorki_content_reactions.content_type: string
-  chorki_content_reactions.created_at: dateTime
-  chorki_content_reactions.id: int
-}
-
-# -------------------
-# chorki_customers
-# -------------------
-type chorki_customers {
-  chorki_customers.updated_at: dateTime
-  chorki_customers.age_consent: string
-  chorki_customers.city: string
-  chorki_customers.country: string
-  chorki_customers.state: string
-  chorki_customers.email: string
-  chorki_customers.last_login_at: dateTime
-  chorki_customers.oauth_id: string
-  chorki_customers.phone: string
-  chorki_customers.tos_consent: string
-  chorki_customers.vppa_consented_at: dateTime
-  chorki_customers.avatar: string
-  chorki_customers.date_of_birth: date
-  chorki_customers.deleted_at: dateTime
-  chorki_customers.device_token: string
-  chorki_customers.gender: string
-  chorki_customers.id: int
-  chorki_customers.oauth_type: string
-  chorki_customers.timezone: string
-  chorki_customers.created_at: dateTime
-  chorki_customers.email_verified_at: dateTime
-  chorki_customers.postal_code: string
-  chorki_customers.registered_os: string
-  chorki_customers.subscription_status: string
-  chorki_customers.name: string
-  chorki_customers.registered_utm: string
-  chorki_customers.viewlift_id: string
-  chorki_customers.email_consent: string
-  chorki_customers.last_login_ip: string
-  chorki_customers.qrcode: string
-  chorki_customers.is_banned: string
-  chorki_customers.otp: string
-  chorki_customers.password: string
-  chorki_customers.registered_platform: string
-  chorki_customers.token: string
-  chorki_customers.is_privileged: string
-  chorki_customers.metadata: string
-  chorki_customers.registration_ip: string
-}
-
-# -------------------
-# chorki_metas
-# -------------------
-type chorki_metas {
-  chorki_metas.locale: string
-  chorki_metas.seo_meta_id: int
-  chorki_metas.thumbnail: string
-  chorki_metas.views: int
-  chorki_metas.ad_campaign_id: int
-  chorki_metas.id: int
-  chorki_metas.language_code: string
-  chorki_metas.last_release_date: dateTime
-  chorki_metas.original_id: int
-  chorki_metas.show_in_archive: string
-  chorki_metas.show_in_tv: string
-  chorki_metas.thumbnail_background: string
-  chorki_metas.created_at: dateTime
-  chorki_metas.description: string
-  chorki_metas.first_release_date: dateTime
-  chorki_metas.poster: string
-  chorki_metas.reactions: int
-  chorki_metas.show_in_web: string
-  chorki_metas.title: string
-  chorki_metas.poster_background: string
-  chorki_metas.show_in_mobile: string
-  chorki_metas.slug: string
-  chorki_metas.type: string
-  chorki_metas.updated_at: dateTime
-  chorki_metas.viewlift_id: string
-}
-
-# -------------------
-# chorki_season_meta
-# -------------------
-type chorki_season_meta {
-  chorki_season_meta.meta_id: int
-  chorki_season_meta.order: int
-  chorki_season_meta.season_id: int
-  chorki_season_meta.featured: string
-  chorki_season_meta.id: int
-}
-
-# -------------------
-# chorki_seasons
-# -------------------
-type chorki_seasons {
-  chorki_seasons.thumbnail_background: string
-  chorki_seasons.viewlift_id: string
-  chorki_seasons.publish_date: dateTime
-  chorki_seasons.series_id: int
-  chorki_seasons.slug: string
-  chorki_seasons.views: int
-  chorki_seasons.deleted_at: dateTime
-  chorki_seasons.label: string
-  chorki_seasons.mnemonic: string
-  chorki_seasons.thumbnail: string
-  chorki_seasons.unpublish_date: dateTime
-  chorki_seasons.created_by: int
-  chorki_seasons.release_date: dateTime
-  chorki_seasons.reactions: int
-  chorki_seasons.title: string
-  chorki_seasons.language_code: string
-  chorki_seasons.created_at: dateTime
-  chorki_seasons.description: string
-  chorki_seasons.type: string
-  chorki_seasons.updated_by: int
-  chorki_seasons.ad_campaign_id: int
-  chorki_seasons.locale: string
-  chorki_seasons.poster: string
-  chorki_seasons.seo_meta_id: int
-  chorki_seasons.show_in_mobile: string
-  chorki_seasons.show_in_tv: string
-  chorki_seasons.status: string
-  chorki_seasons.updated_at: dateTime
-  chorki_seasons.id: int
-  chorki_seasons.original_id: int
-  chorki_seasons.poster_background: string
-  chorki_seasons.show_in_web: string
-}
-
-# -------------------
-# chorki_series_meta
-# -------------------
-type chorki_series_meta {
-  chorki_series_meta.featured: int
-  chorki_series_meta.id: int
-  chorki_series_meta.meta_id: int
-  chorki_series_meta.order: int
-  chorki_series_meta.series_id: int
-}
-
-# -------------------
-# chorki_streams_meta
-# -------------------
-type chorki_streams_meta {
-  chorki_streams_meta.order: int
-  chorki_streams_meta.stream_id: int
-  chorki_streams_meta.featured: string
-  chorki_streams_meta.id: int
-  chorki_streams_meta.meta_id: int
+type chorki_video_meta {
+  chorki_video_meta.featured: string
+  chorki_video_meta.id: int
+  chorki_video_meta.meta_id: int
+  chorki_video_meta.order: int
+  chorki_video_meta.video_id: int
 }
 
 # -------------------
 # chorki_videos
 # -------------------
 type chorki_videos {
-  chorki_videos.created_by: int
-  chorki_videos.is_paid: string
-  chorki_videos.path: string
-  chorki_videos.reactions: int
-  chorki_videos.status: string
-  chorki_videos.unpublish_date: dateTime
-  chorki_videos.updated_at: dateTime
-  chorki_videos.import_status: string
-  chorki_videos.thumbnail_background: string
-  chorki_videos.intro_start: int
   chorki_videos.label: string
-  chorki_videos.outro_start: int
-  chorki_videos.series_id: int
-  chorki_videos.release_date: date
-  chorki_videos.thumbnail: string
-  chorki_videos.imdb_rating: float
-  chorki_videos.parent_id: int
-  chorki_videos.poster_background: string
-  chorki_videos.access_control_value: string
-  chorki_videos.intro_end: int
-  chorki_videos.matomo_views: int
-  chorki_videos.parent_type: string
-  chorki_videos.parent_url: string
-  chorki_videos.seo_meta_id: int
-  chorki_videos.show_in_tv: string
-  chorki_videos.created_at: dateTime
-  chorki_videos.original_id: int
-  chorki_videos.poster_animated: string
-  chorki_videos.slug: string
-  chorki_videos.type: string
-  chorki_videos.updated_by: int
-  chorki_videos.deleted_at: dateTime
-  chorki_videos.description: string
-  chorki_videos.viewlift_id: string
-  chorki_videos.episode_number: int
-  chorki_videos.id: int
-  chorki_videos.access_control_action: string
-  chorki_videos.downloadable: string
-  chorki_videos.duration: int
-  chorki_videos.outro_end: int
-  chorki_videos.show_in_web: string
   chorki_videos.language_code: string
+  chorki_videos.show_in_mobile: string
+  chorki_videos.created_by: int
+  chorki_videos.deleted_at: dateTime
+  chorki_videos.intro_end: int
+  chorki_videos.intro_start: int
+  chorki_videos.is_paid: string
+  chorki_videos.reactions: int
+  chorki_videos.release_date: date
+  chorki_videos.import_status: string
+  chorki_videos.seo_meta_id: int
+  chorki_videos.slug: string
+  chorki_videos.ad_campaign_id: int
+  chorki_videos.outro_end: int
+  chorki_videos.path: string
+  chorki_videos.subtitles: string
+  chorki_videos.imdb_rating: float
+  chorki_videos.show_in_web: string
+  chorki_videos.status: string
+  chorki_videos.duration: int
+  chorki_videos.title: string
+  chorki_videos.created_at: dateTime
+  chorki_videos.matomo_plays: int
+  chorki_videos.poster_animated: string
+  chorki_videos.updated_by: int
   chorki_videos.views: int
+  chorki_videos.description: string
+  chorki_videos.parent_url: string
+  chorki_videos.publish_date: dateTime
+  chorki_videos.season_id: int
+  chorki_videos.show_in_tv: string
+  chorki_videos.access_control_value: string
+  chorki_videos.viewlift_id: string
+  chorki_videos.outro_start: int
+  chorki_videos.id: int
+  chorki_videos.mnemonic: string
+  chorki_videos.poster_background: string
+  chorki_videos.type: string
+  chorki_videos.access_control_action: string
+  chorki_videos.content_access: string
+  chorki_videos.episode_number: int
+  chorki_videos.poster: string
+  chorki_videos.raw_path: string
+  chorki_videos.content_rating: float
+  chorki_videos.matomo_views: int
+  chorki_videos.original_id: int
+  chorki_videos.series_id: int
+  chorki_videos.sprite: string
+  chorki_videos.unpublish_date: dateTime
   chorki_videos.age_rating: int
   chorki_videos.locale: string
-  chorki_videos.publish_date: dateTime
-  chorki_videos.sprite: string
-  chorki_videos.content_access: string
-  chorki_videos.content_rating: float
+  chorki_videos.thumbnail: string
+  chorki_videos.thumbnail_background: string
+  chorki_videos.updated_at: dateTime
+  chorki_videos.downloadable: string
   chorki_videos.language: string
-  chorki_videos.poster: string
-  chorki_videos.season_id: int
-  chorki_videos.show_in_mobile: string
-  chorki_videos.title: string
-  chorki_videos.raw_path: string
-  chorki_videos.mnemonic: string
-  chorki_videos.subtitles: string
-  chorki_videos.ad_campaign_id: int
-  chorki_videos.matomo_plays: int
+  chorki_videos.parent_id: int
+  chorki_videos.parent_type: string
 }
 
 # -------------------
@@ -238,402 +87,553 @@ type chorki_customer_meta_preferences {
 }
 
 # -------------------
+# chorki_customers
+# -------------------
+type chorki_customers {
+  chorki_customers.email_consent: string
+  chorki_customers.metadata: string
+  chorki_customers.registered_platform: string
+  chorki_customers.id: int
+  chorki_customers.is_banned: string
+  chorki_customers.is_privileged: string
+  chorki_customers.oauth_type: string
+  chorki_customers.tos_consent: string
+  chorki_customers.city: string
+  chorki_customers.date_of_birth: date
+  chorki_customers.last_login_ip: string
+  chorki_customers.subscription_status: string
+  chorki_customers.registered_utm: string
+  chorki_customers.age_consent: string
+  chorki_customers.registration_ip: string
+  chorki_customers.phone: string
+  chorki_customers.postal_code: string
+  chorki_customers.registered_os: string
+  chorki_customers.created_at: dateTime
+  chorki_customers.deleted_at: dateTime
+  chorki_customers.last_login_at: dateTime
+  chorki_customers.name: string
+  chorki_customers.state: string
+  chorki_customers.avatar: string
+  chorki_customers.device_token: string
+  chorki_customers.email: string
+  chorki_customers.qrcode: string
+  chorki_customers.timezone: string
+  chorki_customers.token: string
+  chorki_customers.updated_at: dateTime
+  chorki_customers.viewlift_id: string
+  chorki_customers.country: string
+  chorki_customers.email_verified_at: dateTime
+  chorki_customers.gender: string
+  chorki_customers.oauth_id: string
+  chorki_customers.otp: string
+  chorki_customers.password: string
+  chorki_customers.vppa_consented_at: dateTime
+}
+
+# -------------------
 # chorki_series
 # -------------------
 type chorki_series {
-  chorki_series.age_rating: int
-  chorki_series.language_code: string
-  chorki_series.poster: string
-  chorki_series.poster_background: string
-  chorki_series.thumbnail_background: string
-  chorki_series.unpublish_date: dateTime
-  chorki_series.viewlift_id: string
   chorki_series.description: string
+  chorki_series.language_code: string
   chorki_series.locale: string
+  chorki_series.original_id: int
+  chorki_series.status: string
+  chorki_series.ad_campaign_id: int
+  chorki_series.id: int
+  chorki_series.label: string
   chorki_series.publish_date: dateTime
   chorki_series.release_date: date
-  chorki_series.views: int
-  chorki_series.deleted_at: dateTime
-  chorki_series.id: int
-  chorki_series.imdb_rating: float
-  chorki_series.show_in_mobile: string
-  chorki_series.show_in_tv: string
-  chorki_series.status: string
-  chorki_series.thumbnail: string
-  chorki_series.type: string
-  chorki_series.updated_at: dateTime
-  chorki_series.content_access: string
-  chorki_series.content_rating: float
-  chorki_series.language: string
-  chorki_series.reactions: int
-  chorki_series.mnemonic: string
-  chorki_series.slug: string
-  chorki_series.access_control_action: string
-  chorki_series.original_id: int
   chorki_series.seo_meta_id: int
-  chorki_series.show_in_web: string
+  chorki_series.thumbnail: string
   chorki_series.title: string
+  chorki_series.deleted_at: dateTime
+  chorki_series.type: string
+  chorki_series.unpublish_date: dateTime
+  chorki_series.viewlift_id: string
+  chorki_series.poster_background: string
+  chorki_series.updated_at: dateTime
+  chorki_series.views: int
+  chorki_series.access_control_action: string
+  chorki_series.content_access: string
+  chorki_series.created_by: int
+  chorki_series.imdb_rating: float
+  chorki_series.language: string
+  chorki_series.content_rating: float
+  chorki_series.reactions: int
+  chorki_series.show_in_tv: string
+  chorki_series.show_in_web: string
   chorki_series.updated_by: int
   chorki_series.access_control_value: string
+  chorki_series.mnemonic: string
+  chorki_series.poster: string
+  chorki_series.slug: string
+  chorki_series.thumbnail_background: string
+  chorki_series.age_rating: int
   chorki_series.created_at: dateTime
-  chorki_series.created_by: int
-  chorki_series.label: string
-  chorki_series.ad_campaign_id: int
+  chorki_series.show_in_mobile: string
+}
+
+# -------------------
+# chorki_series_meta
+# -------------------
+type chorki_series_meta {
+  chorki_series_meta.id: int
+  chorki_series_meta.meta_id: int
+  chorki_series_meta.order: int
+  chorki_series_meta.series_id: int
+  chorki_series_meta.featured: int
 }
 
 # -------------------
 # chorki_streams
 # -------------------
 type chorki_streams {
-  chorki_streams.ad_campaign_id: int
-  chorki_streams.content_access: string
   chorki_streams.starts_at: dateTime
-  chorki_streams.title: string
-  chorki_streams.age_rating: int
-  chorki_streams.ends_at: dateTime
-  chorki_streams.show_in_tv: string
   chorki_streams.url: string
-  chorki_streams.access_control_value: string
-  chorki_streams.created_at: dateTime
-  chorki_streams.poster_background: string
-  chorki_streams.show_in_mobile: string
-  chorki_streams.access_control_action: string
-  chorki_streams.cdn_auth_token: string
-  chorki_streams.content_rating: int
-  chorki_streams.label: string
-  chorki_streams.seo_meta_id: int
-  chorki_streams.views: int
-  chorki_streams.description: string
-  chorki_streams.language_code: int
-  chorki_streams.reactions: int
-  chorki_streams.show_in_web: string
-  chorki_streams.slug: string
-  chorki_streams.thumbnail: string
+  chorki_streams.ad_campaign_id: int
   chorki_streams.updated_at: dateTime
-  chorki_streams.created_by: int
-  chorki_streams.mnemonic: string
-  chorki_streams.original_id: int
-  chorki_streams.status: string
   chorki_streams.viewlift_id: int
   chorki_streams.deleted_at: dateTime
-  chorki_streams.id: int
-  chorki_streams.locale: string
-  chorki_streams.thumbnail_background: string
-  chorki_streams.type: string
+  chorki_streams.label: string
+  chorki_streams.show_in_tv: string
+  chorki_streams.status: string
   chorki_streams.unpublish_date: dateTime
   chorki_streams.cdn_auth_enabled: string
+  chorki_streams.content_rating: int
+  chorki_streams.created_by: int
+  chorki_streams.id: int
+  chorki_streams.language_code: int
+  chorki_streams.thumbnail_background: string
+  chorki_streams.access_control_action: string
+  chorki_streams.created_at: dateTime
   chorki_streams.poster: string
+  chorki_streams.title: string
+  chorki_streams.views: int
+  chorki_streams.content_access: string
+  chorki_streams.ends_at: dateTime
   chorki_streams.publish_date: dateTime
+  chorki_streams.reactions: int
+  chorki_streams.seo_meta_id: int
+  chorki_streams.show_in_mobile: string
+  chorki_streams.show_in_web: string
+  chorki_streams.slug: string
+  chorki_streams.age_rating: int
+  chorki_streams.cdn_auth_token: string
+  chorki_streams.original_id: int
+  chorki_streams.type: string
+  chorki_streams.description: string
+  chorki_streams.mnemonic: string
+  chorki_streams.thumbnail: string
   chorki_streams.updated_by: int
+  chorki_streams.access_control_value: string
+  chorki_streams.locale: string
+  chorki_streams.poster_background: string
 }
 
 # -------------------
-# chorki_video_meta
+# chorki_streams_meta
 # -------------------
-type chorki_video_meta {
-  chorki_video_meta.featured: string
-  chorki_video_meta.id: int
-  chorki_video_meta.meta_id: int
-  chorki_video_meta.order: int
-  chorki_video_meta.video_id: int
+type chorki_streams_meta {
+  chorki_streams_meta.meta_id: int
+  chorki_streams_meta.order: int
+  chorki_streams_meta.stream_id: int
+  chorki_streams_meta.featured: string
+  chorki_streams_meta.id: int
 }
 
 # -------------------
 # chorki_watch_histories.sql
 # -------------------
 type chorki_watch_histories.sql {
-  chorki_watch_histories.sql.content_id: int
-  chorki_watch_histories.sql.customer_id: int
-  chorki_watch_histories.sql.deleted_at: dateTime
-  chorki_watch_histories.sql.id: int
-  chorki_watch_histories.sql.updated_at: dateTime
   chorki_watch_histories.sql.watched_at: dateTime
-  chorki_watch_histories.sql.content_type: string
   chorki_watch_histories.sql.created_at: dateTime
-  chorki_watch_histories.sql.device_id: int
-  chorki_watch_histories.sql.profile_id: int
+  chorki_watch_histories.sql.deleted_at: dateTime
   chorki_watch_histories.sql.watched_duration: int
+  chorki_watch_histories.sql.content_id: int
+  chorki_watch_histories.sql.content_type: string
+  chorki_watch_histories.sql.customer_id: int
+  chorki_watch_histories.sql.device_id: int
+  chorki_watch_histories.sql.id: int
+  chorki_watch_histories.sql.profile_id: int
+  chorki_watch_histories.sql.updated_at: dateTime
+}
+
+# -------------------
+# chorki_content_reactions
+# -------------------
+type chorki_content_reactions {
+  chorki_content_reactions.content_type: string
+  chorki_content_reactions.created_at: dateTime
+  chorki_content_reactions.deleted_at: dateTime
+  chorki_content_reactions.profile_id: int
+  chorki_content_reactions.updated_at: dateTime
+  chorki_content_reactions.aggregated: string
+  chorki_content_reactions.customer_id: int
+  chorki_content_reactions.id: int
+  chorki_content_reactions.type: string
+  chorki_content_reactions.content_id: int
+}
+
+# -------------------
+# chorki_metas
+# -------------------
+type chorki_metas {
+  chorki_metas.ad_campaign_id: int
+  chorki_metas.id: int
+  chorki_metas.poster: string
+  chorki_metas.show_in_archive: string
+  chorki_metas.show_in_tv: string
+  chorki_metas.viewlift_id: string
+  chorki_metas.views: int
+  chorki_metas.created_at: dateTime
+  chorki_metas.description: string
+  chorki_metas.first_release_date: dateTime
+  chorki_metas.thumbnail_background: string
+  chorki_metas.title: string
+  chorki_metas.type: string
+  chorki_metas.original_id: int
+  chorki_metas.poster_background: string
+  chorki_metas.reactions: int
+  chorki_metas.seo_meta_id: int
+  chorki_metas.show_in_mobile: string
+  chorki_metas.slug: string
+  chorki_metas.thumbnail: string
+  chorki_metas.updated_at: dateTime
+  chorki_metas.language_code: string
+  chorki_metas.last_release_date: dateTime
+  chorki_metas.locale: string
+  chorki_metas.show_in_web: string
+}
+
+# -------------------
+# chorki_season_meta
+# -------------------
+type chorki_season_meta {
+  chorki_season_meta.season_id: int
+  chorki_season_meta.featured: string
+  chorki_season_meta.id: int
+  chorki_season_meta.meta_id: int
+  chorki_season_meta.order: int
+}
+
+# -------------------
+# chorki_seasons
+# -------------------
+type chorki_seasons {
+  chorki_seasons.show_in_web: string
+  chorki_seasons.thumbnail: string
+  chorki_seasons.locale: string
+  chorki_seasons.slug: string
+  chorki_seasons.status: string
+  chorki_seasons.ad_campaign_id: int
+  chorki_seasons.language_code: string
+  chorki_seasons.type: string
+  chorki_seasons.unpublish_date: dateTime
+  chorki_seasons.views: int
+  chorki_seasons.created_by: int
+  chorki_seasons.seo_meta_id: int
+  chorki_seasons.created_at: dateTime
+  chorki_seasons.label: string
+  chorki_seasons.poster: string
+  chorki_seasons.thumbnail_background: string
+  chorki_seasons.deleted_at: dateTime
+  chorki_seasons.show_in_mobile: string
+  chorki_seasons.title: string
+  chorki_seasons.updated_at: dateTime
+  chorki_seasons.publish_date: dateTime
+  chorki_seasons.release_date: dateTime
+  chorki_seasons.updated_by: int
+  chorki_seasons.viewlift_id: string
+  chorki_seasons.description: string
+  chorki_seasons.id: int
+  chorki_seasons.original_id: int
+  chorki_seasons.reactions: int
+  chorki_seasons.series_id: int
+  chorki_seasons.mnemonic: string
+  chorki_seasons.poster_background: string
+  chorki_seasons.show_in_tv: string
 }
 
 # ===================
 # Predicates
 # ===================
-chorki_content_reactions.aggregated: string @index(exact) .
-chorki_content_reactions.content_id: int @index(int) .
-chorki_content_reactions.content_type: string @index(exact) .
-chorki_content_reactions.created_at: dateTime @index(hour) .
-chorki_content_reactions.id: int @index(int) .
-chorki_content_reactions.profile_id: int @index(int) .
-chorki_content_reactions.type: string @index(exact) .
-chorki_content_reactions.customer_id: int @index(int) .
-chorki_content_reactions.deleted_at: dateTime @index(hour) .
-chorki_content_reactions.updated_at: dateTime @index(hour) .
-chorki_customers.email_consent: string @index(exact) .
-chorki_customers.last_login_ip: string @index(exact) .
-chorki_customers.qrcode: string @index(exact) .
-chorki_customers.is_banned: string @index(exact) .
-chorki_customers.otp: string @index(exact) .
-chorki_customers.password: string @index(exact) .
-chorki_customers.registered_platform: string @index(exact) .
-chorki_customers.token: string @index(exact) .
-chorki_customers.is_privileged: string @index(exact) .
-chorki_customers.metadata: string @index(exact) .
-chorki_customers.registration_ip: string @index(exact) .
-chorki_customers.updated_at: dateTime @index(hour) .
-chorki_customers.age_consent: string @index(exact) .
-chorki_customers.city: string @index(exact) .
-chorki_customers.country: string @index(exact) .
-chorki_customers.state: string @index(exact) .
-chorki_customers.email: string @index(exact) .
-chorki_customers.last_login_at: dateTime @index(hour) .
-chorki_customers.oauth_id: string @index(exact) .
-chorki_customers.phone: string @index(exact) .
-chorki_customers.tos_consent: string @index(exact) .
-chorki_customers.vppa_consented_at: dateTime @index(hour) .
-chorki_customers.avatar: string @index(exact) .
-chorki_customers.date_of_birth: date @index(day) .
-chorki_customers.deleted_at: dateTime @index(hour) .
-chorki_customers.device_token: string @index(exact) .
-chorki_customers.gender: string @index(exact) .
-chorki_customers.id: int @index(int) .
-chorki_customers.oauth_type: string @index(exact) .
-chorki_customers.timezone: string @index(exact) .
-chorki_customers.created_at: dateTime @index(hour) .
-chorki_customers.email_verified_at: dateTime @index(hour) .
-chorki_customers.postal_code: string @index(exact) .
-chorki_customers.registered_os: string @index(exact) .
-chorki_customers.subscription_status: string @index(exact) .
-chorki_customers.name: string @index(exact) .
-chorki_customers.registered_utm: string @index(exact) .
-chorki_customers.viewlift_id: string @index(exact) .
-chorki_metas.ad_campaign_id: int @index(int) .
-chorki_metas.id: int @index(int) .
-chorki_metas.language_code: string @index(exact) .
-chorki_metas.last_release_date: dateTime @index(hour) .
-chorki_metas.original_id: int @index(int) .
-chorki_metas.show_in_archive: string @index(exact) .
-chorki_metas.show_in_tv: string @index(exact) .
-chorki_metas.thumbnail_background: string @index(exact) .
-chorki_metas.created_at: dateTime @index(hour) .
-chorki_metas.description: string @index(exact) .
-chorki_metas.first_release_date: dateTime @index(hour) .
-chorki_metas.poster: string @index(exact) .
-chorki_metas.reactions: int @index(int) .
-chorki_metas.show_in_web: string @index(exact) .
-chorki_metas.title: string @index(exact) .
-chorki_metas.poster_background: string @index(exact) .
-chorki_metas.show_in_mobile: string @index(exact) .
-chorki_metas.slug: string @index(exact) .
-chorki_metas.type: string @index(exact) .
-chorki_metas.updated_at: dateTime @index(hour) .
-chorki_metas.viewlift_id: string @index(exact) .
-chorki_metas.locale: string @index(exact) .
-chorki_metas.seo_meta_id: int @index(int) .
-chorki_metas.thumbnail: string @index(exact) .
-chorki_metas.views: int @index(int) .
-chorki_season_meta.id: int @index(int) .
-chorki_season_meta.meta_id: int @index(int) .
-chorki_season_meta.order: int @index(int) .
-chorki_season_meta.season_id: int @index(int) .
-chorki_season_meta.featured: string @index(exact) .
-chorki_seasons.release_date: dateTime @index(hour) .
-chorki_seasons.reactions: int @index(int) .
-chorki_seasons.title: string @index(exact) .
-chorki_seasons.language_code: string @index(exact) .
-chorki_seasons.created_at: dateTime @index(hour) .
-chorki_seasons.description: string @index(exact) .
-chorki_seasons.type: string @index(exact) .
-chorki_seasons.updated_by: int @index(int) .
-chorki_seasons.ad_campaign_id: int @index(int) .
-chorki_seasons.locale: string @index(exact) .
-chorki_seasons.poster: string @index(exact) .
-chorki_seasons.seo_meta_id: int @index(int) .
-chorki_seasons.show_in_mobile: string @index(exact) .
-chorki_seasons.show_in_tv: string @index(exact) .
-chorki_seasons.status: string @index(exact) .
-chorki_seasons.updated_at: dateTime @index(hour) .
-chorki_seasons.id: int @index(int) .
-chorki_seasons.original_id: int @index(int) .
-chorki_seasons.poster_background: string @index(exact) .
-chorki_seasons.show_in_web: string @index(exact) .
-chorki_seasons.thumbnail_background: string @index(exact) .
-chorki_seasons.viewlift_id: string @index(exact) .
-chorki_seasons.publish_date: dateTime @index(hour) .
-chorki_seasons.series_id: int @index(int) .
-chorki_seasons.slug: string @index(exact) .
-chorki_seasons.views: int @index(int) .
-chorki_seasons.deleted_at: dateTime @index(hour) .
-chorki_seasons.label: string @index(exact) .
-chorki_seasons.mnemonic: string @index(exact) .
-chorki_seasons.thumbnail: string @index(exact) .
-chorki_seasons.unpublish_date: dateTime @index(hour) .
-chorki_seasons.created_by: int @index(int) .
-chorki_series_meta.meta_id: int @index(int) .
+chorki_series.language_code: string @index(exact) .
+chorki_series.locale: string @index(exact) .
+chorki_series.original_id: int @index(int) .
+chorki_series.status: string @index(exact) .
+chorki_series.ad_campaign_id: int @index(int) .
+chorki_series.id: int @index(int) .
+chorki_series.label: string @index(exact) .
+chorki_series.publish_date: dateTime @index(hour) .
+chorki_series.release_date: date @index(day) .
+chorki_series.seo_meta_id: int @index(int) .
+chorki_series.thumbnail: string @index(exact) .
+chorki_series.title: string @index(exact) .
+chorki_series.deleted_at: dateTime @index(hour) .
+chorki_series.type: string @index(exact) .
+chorki_series.unpublish_date: dateTime @index(hour) .
+chorki_series.viewlift_id: string @index(exact) .
+chorki_series.poster_background: string @index(exact) .
+chorki_series.updated_at: dateTime @index(hour) .
+chorki_series.views: int @index(int) .
+chorki_series.access_control_action: string @index(exact) .
+chorki_series.content_access: string @index(exact) .
+chorki_series.created_by: int @index(int) .
+chorki_series.imdb_rating: float @index(float) .
+chorki_series.language: string @index(exact) .
+chorki_series.content_rating: float @index(float) .
+chorki_series.reactions: int @index(int) .
+chorki_series.show_in_tv: string @index(exact) .
+chorki_series.show_in_web: string @index(exact) .
+chorki_series.updated_by: int @index(int) .
+chorki_series.access_control_value: string @index(exact) .
+chorki_series.mnemonic: string @index(exact) .
+chorki_series.poster: string @index(exact) .
+chorki_series.slug: string @index(exact) .
+chorki_series.thumbnail_background: string @index(exact) .
+chorki_series.age_rating: int @index(int) .
+chorki_series.created_at: dateTime @index(hour) .
+chorki_series.show_in_mobile: string @index(exact) .
+chorki_series.description: string @index(exact) .
 chorki_series_meta.order: int @index(int) .
 chorki_series_meta.series_id: int @index(int) .
 chorki_series_meta.featured: int @index(int) .
 chorki_series_meta.id: int @index(int) .
+chorki_series_meta.meta_id: int @index(int) .
+chorki_streams.access_control_action: string @index(exact) .
+chorki_streams.created_at: dateTime @index(hour) .
+chorki_streams.poster: string @index(exact) .
+chorki_streams.title: string @index(exact) .
+chorki_streams.views: int @index(int) .
+chorki_streams.content_access: string @index(exact) .
+chorki_streams.ends_at: dateTime @index(hour) .
+chorki_streams.publish_date: dateTime @index(hour) .
+chorki_streams.reactions: int @index(int) .
+chorki_streams.seo_meta_id: int @index(int) .
+chorki_streams.show_in_mobile: string @index(exact) .
+chorki_streams.show_in_web: string @index(exact) .
+chorki_streams.slug: string @index(exact) .
+chorki_streams.age_rating: int @index(int) .
+chorki_streams.cdn_auth_token: string @index(exact) .
+chorki_streams.original_id: int @index(int) .
+chorki_streams.type: string @index(exact) .
+chorki_streams.description: string @index(exact) .
+chorki_streams.mnemonic: string @index(exact) .
+chorki_streams.thumbnail: string @index(exact) .
+chorki_streams.updated_by: int @index(int) .
+chorki_streams.access_control_value: string @index(exact) .
+chorki_streams.locale: string @index(exact) .
+chorki_streams.poster_background: string @index(exact) .
+chorki_streams.starts_at: dateTime @index(hour) .
+chorki_streams.url: string @index(exact) .
+chorki_streams.ad_campaign_id: int @index(int) .
+chorki_streams.updated_at: dateTime @index(hour) .
+chorki_streams.viewlift_id: int @index(int) .
+chorki_streams.deleted_at: dateTime @index(hour) .
+chorki_streams.label: string @index(exact) .
+chorki_streams.show_in_tv: string @index(exact) .
+chorki_streams.status: string @index(exact) .
+chorki_streams.unpublish_date: dateTime @index(hour) .
+chorki_streams.cdn_auth_enabled: string @index(exact) .
+chorki_streams.content_rating: int @index(int) .
+chorki_streams.created_by: int @index(int) .
+chorki_streams.id: int @index(int) .
+chorki_streams.language_code: int @index(int) .
+chorki_streams.thumbnail_background: string @index(exact) .
+chorki_streams_meta.featured: string @index(exact) .
 chorki_streams_meta.id: int @index(int) .
 chorki_streams_meta.meta_id: int @index(int) .
 chorki_streams_meta.order: int @index(int) .
 chorki_streams_meta.stream_id: int @index(int) .
-chorki_streams_meta.featured: string @index(exact) .
-chorki_videos.outro_start: int @index(int) .
-chorki_videos.series_id: int @index(int) .
-chorki_videos.release_date: date @index(day) .
-chorki_videos.thumbnail: string @index(exact) .
-chorki_videos.imdb_rating: float @index(float) .
-chorki_videos.parent_id: int @index(int) .
-chorki_videos.poster_background: string @index(exact) .
-chorki_videos.access_control_value: string @index(exact) .
-chorki_videos.intro_end: int @index(int) .
-chorki_videos.matomo_views: int @index(int) .
-chorki_videos.parent_type: string @index(exact) .
-chorki_videos.parent_url: string @index(exact) .
-chorki_videos.seo_meta_id: int @index(int) .
-chorki_videos.show_in_tv: string @index(exact) .
-chorki_videos.created_at: dateTime @index(hour) .
-chorki_videos.original_id: int @index(int) .
-chorki_videos.poster_animated: string @index(exact) .
-chorki_videos.slug: string @index(exact) .
-chorki_videos.type: string @index(exact) .
-chorki_videos.updated_by: int @index(int) .
-chorki_videos.deleted_at: dateTime @index(hour) .
-chorki_videos.description: string @index(exact) .
-chorki_videos.viewlift_id: string @index(exact) .
-chorki_videos.episode_number: int @index(int) .
-chorki_videos.id: int @index(int) .
-chorki_videos.access_control_action: string @index(exact) .
-chorki_videos.downloadable: string @index(exact) .
-chorki_videos.duration: int @index(int) .
-chorki_videos.outro_end: int @index(int) .
-chorki_videos.show_in_web: string @index(exact) .
-chorki_videos.language_code: string @index(exact) .
-chorki_videos.views: int @index(int) .
+chorki_watch_histories.sql.profile_id: int @index(int) .
+chorki_watch_histories.sql.updated_at: dateTime @index(hour) .
+chorki_watch_histories.sql.watched_at: dateTime @index(hour) .
+chorki_watch_histories.sql.created_at: dateTime @index(hour) .
+chorki_watch_histories.sql.deleted_at: dateTime @index(hour) .
+chorki_watch_histories.sql.watched_duration: int @index(int) .
+chorki_watch_histories.sql.content_id: int @index(int) .
+chorki_watch_histories.sql.content_type: string @index(exact) .
+chorki_watch_histories.sql.customer_id: int @index(int) .
+chorki_watch_histories.sql.device_id: int @index(int) .
+chorki_watch_histories.sql.id: int @index(int) .
+chorki_content_reactions.content_id: int @index(int) .
+chorki_content_reactions.content_type: string @index(exact) .
+chorki_content_reactions.created_at: dateTime @index(hour) .
+chorki_content_reactions.deleted_at: dateTime @index(hour) .
+chorki_content_reactions.profile_id: int @index(int) .
+chorki_content_reactions.updated_at: dateTime @index(hour) .
+chorki_content_reactions.aggregated: string @index(exact) .
+chorki_content_reactions.customer_id: int @index(int) .
+chorki_content_reactions.id: int @index(int) .
+chorki_content_reactions.type: string @index(exact) .
+chorki_metas.language_code: string @index(exact) .
+chorki_metas.last_release_date: dateTime @index(hour) .
+chorki_metas.locale: string @index(exact) .
+chorki_metas.show_in_web: string @index(exact) .
+chorki_metas.ad_campaign_id: int @index(int) .
+chorki_metas.id: int @index(int) .
+chorki_metas.poster: string @index(exact) .
+chorki_metas.show_in_archive: string @index(exact) .
+chorki_metas.show_in_tv: string @index(exact) .
+chorki_metas.viewlift_id: string @index(exact) .
+chorki_metas.views: int @index(int) .
+chorki_metas.created_at: dateTime @index(hour) .
+chorki_metas.description: string @index(exact) .
+chorki_metas.first_release_date: dateTime @index(hour) .
+chorki_metas.thumbnail_background: string @index(exact) .
+chorki_metas.title: string @index(exact) .
+chorki_metas.type: string @index(exact) .
+chorki_metas.original_id: int @index(int) .
+chorki_metas.poster_background: string @index(exact) .
+chorki_metas.reactions: int @index(int) .
+chorki_metas.seo_meta_id: int @index(int) .
+chorki_metas.show_in_mobile: string @index(exact) .
+chorki_metas.slug: string @index(exact) .
+chorki_metas.thumbnail: string @index(exact) .
+chorki_metas.updated_at: dateTime @index(hour) .
+chorki_season_meta.season_id: int @index(int) .
+chorki_season_meta.featured: string @index(exact) .
+chorki_season_meta.id: int @index(int) .
+chorki_season_meta.meta_id: int @index(int) .
+chorki_season_meta.order: int @index(int) .
+chorki_seasons.series_id: int @index(int) .
+chorki_seasons.mnemonic: string @index(exact) .
+chorki_seasons.poster_background: string @index(exact) .
+chorki_seasons.show_in_tv: string @index(exact) .
+chorki_seasons.show_in_web: string @index(exact) .
+chorki_seasons.thumbnail: string @index(exact) .
+chorki_seasons.locale: string @index(exact) .
+chorki_seasons.slug: string @index(exact) .
+chorki_seasons.status: string @index(exact) .
+chorki_seasons.ad_campaign_id: int @index(int) .
+chorki_seasons.language_code: string @index(exact) .
+chorki_seasons.type: string @index(exact) .
+chorki_seasons.unpublish_date: dateTime @index(hour) .
+chorki_seasons.views: int @index(int) .
+chorki_seasons.created_by: int @index(int) .
+chorki_seasons.seo_meta_id: int @index(int) .
+chorki_seasons.created_at: dateTime @index(hour) .
+chorki_seasons.label: string @index(exact) .
+chorki_seasons.poster: string @index(exact) .
+chorki_seasons.thumbnail_background: string @index(exact) .
+chorki_seasons.deleted_at: dateTime @index(hour) .
+chorki_seasons.show_in_mobile: string @index(exact) .
+chorki_seasons.title: string @index(exact) .
+chorki_seasons.updated_at: dateTime @index(hour) .
+chorki_seasons.publish_date: dateTime @index(hour) .
+chorki_seasons.release_date: dateTime @index(hour) .
+chorki_seasons.updated_by: int @index(int) .
+chorki_seasons.viewlift_id: string @index(exact) .
+chorki_seasons.description: string @index(exact) .
+chorki_seasons.id: int @index(int) .
+chorki_seasons.original_id: int @index(int) .
+chorki_seasons.reactions: int @index(int) .
+chorki_video_meta.id: int @index(int) .
+chorki_video_meta.meta_id: int @index(int) .
+chorki_video_meta.order: int @index(int) .
+chorki_video_meta.video_id: int @index(int) .
+chorki_video_meta.featured: string @index(exact) .
 chorki_videos.age_rating: int @index(int) .
 chorki_videos.locale: string @index(exact) .
-chorki_videos.publish_date: dateTime @index(hour) .
-chorki_videos.sprite: string @index(exact) .
-chorki_videos.content_access: string @index(exact) .
-chorki_videos.content_rating: float @index(float) .
-chorki_videos.language: string @index(exact) .
-chorki_videos.poster: string @index(exact) .
-chorki_videos.season_id: int @index(int) .
-chorki_videos.show_in_mobile: string @index(exact) .
-chorki_videos.title: string @index(exact) .
-chorki_videos.raw_path: string @index(exact) .
-chorki_videos.mnemonic: string @index(exact) .
-chorki_videos.subtitles: string @index(exact) .
-chorki_videos.ad_campaign_id: int @index(int) .
-chorki_videos.matomo_plays: int @index(int) .
-chorki_videos.created_by: int @index(int) .
-chorki_videos.is_paid: string @index(exact) .
-chorki_videos.path: string @index(exact) .
-chorki_videos.reactions: int @index(int) .
-chorki_videos.status: string @index(exact) .
-chorki_videos.unpublish_date: dateTime @index(hour) .
-chorki_videos.updated_at: dateTime @index(hour) .
-chorki_videos.import_status: string @index(exact) .
+chorki_videos.thumbnail: string @index(exact) .
 chorki_videos.thumbnail_background: string @index(exact) .
-chorki_videos.intro_start: int @index(int) .
+chorki_videos.updated_at: dateTime @index(hour) .
+chorki_videos.downloadable: string @index(exact) .
+chorki_videos.language: string @index(exact) .
+chorki_videos.parent_id: int @index(int) .
+chorki_videos.parent_type: string @index(exact) .
 chorki_videos.label: string @index(exact) .
+chorki_videos.language_code: string @index(exact) .
+chorki_videos.show_in_mobile: string @index(exact) .
+chorki_videos.created_by: int @index(int) .
+chorki_videos.deleted_at: dateTime @index(hour) .
+chorki_videos.intro_end: int @index(int) .
+chorki_videos.intro_start: int @index(int) .
+chorki_videos.is_paid: string @index(exact) .
+chorki_videos.reactions: int @index(int) .
+chorki_videos.release_date: date @index(day) .
+chorki_videos.import_status: string @index(exact) .
+chorki_videos.seo_meta_id: int @index(int) .
+chorki_videos.slug: string @index(exact) .
+chorki_videos.ad_campaign_id: int @index(int) .
+chorki_videos.outro_end: int @index(int) .
+chorki_videos.path: string @index(exact) .
+chorki_videos.subtitles: string @index(exact) .
+chorki_videos.imdb_rating: float @index(float) .
+chorki_videos.show_in_web: string @index(exact) .
+chorki_videos.status: string @index(exact) .
+chorki_videos.duration: int @index(int) .
+chorki_videos.title: string @index(exact) .
+chorki_videos.created_at: dateTime @index(hour) .
+chorki_videos.matomo_plays: int @index(int) .
+chorki_videos.poster_animated: string @index(exact) .
+chorki_videos.updated_by: int @index(int) .
+chorki_videos.views: int @index(int) .
+chorki_videos.description: string @index(exact) .
+chorki_videos.parent_url: string @index(exact) .
+chorki_videos.publish_date: dateTime @index(hour) .
+chorki_videos.season_id: int @index(int) .
+chorki_videos.show_in_tv: string @index(exact) .
+chorki_videos.access_control_value: string @index(exact) .
+chorki_videos.viewlift_id: string @index(exact) .
+chorki_videos.outro_start: int @index(int) .
+chorki_videos.id: int @index(int) .
+chorki_videos.mnemonic: string @index(exact) .
+chorki_videos.poster_background: string @index(exact) .
+chorki_videos.type: string @index(exact) .
+chorki_videos.access_control_action: string @index(exact) .
+chorki_videos.content_access: string @index(exact) .
+chorki_videos.episode_number: int @index(int) .
+chorki_videos.poster: string @index(exact) .
+chorki_videos.raw_path: string @index(exact) .
+chorki_videos.content_rating: float @index(float) .
+chorki_videos.matomo_views: int @index(int) .
+chorki_videos.original_id: int @index(int) .
+chorki_videos.series_id: int @index(int) .
+chorki_videos.sprite: string @index(exact) .
+chorki_videos.unpublish_date: dateTime @index(hour) .
+chorki_customer_meta_preferences.meta_id: int @index(int) .
+chorki_customer_meta_preferences.profile_id: int @index(int) .
 chorki_customer_meta_preferences.updated_at: dateTime @index(hour) .
 chorki_customer_meta_preferences.created_at: dateTime @index(hour) .
 chorki_customer_meta_preferences.customer_id: int @index(int) .
 chorki_customer_meta_preferences.id: int @index(int) .
-chorki_customer_meta_preferences.meta_id: int @index(int) .
-chorki_customer_meta_preferences.profile_id: int @index(int) .
-chorki_series.content_rating: float @index(float) .
-chorki_series.language: string @index(exact) .
-chorki_series.reactions: int @index(int) .
-chorki_series.mnemonic: string @index(exact) .
-chorki_series.slug: string @index(exact) .
-chorki_series.access_control_action: string @index(exact) .
-chorki_series.original_id: int @index(int) .
-chorki_series.seo_meta_id: int @index(int) .
-chorki_series.show_in_web: string @index(exact) .
-chorki_series.title: string @index(exact) .
-chorki_series.updated_by: int @index(int) .
-chorki_series.access_control_value: string @index(exact) .
-chorki_series.created_at: dateTime @index(hour) .
-chorki_series.created_by: int @index(int) .
-chorki_series.label: string @index(exact) .
-chorki_series.ad_campaign_id: int @index(int) .
-chorki_series.age_rating: int @index(int) .
-chorki_series.language_code: string @index(exact) .
-chorki_series.poster: string @index(exact) .
-chorki_series.poster_background: string @index(exact) .
-chorki_series.thumbnail_background: string @index(exact) .
-chorki_series.unpublish_date: dateTime @index(hour) .
-chorki_series.viewlift_id: string @index(exact) .
-chorki_series.description: string @index(exact) .
-chorki_series.locale: string @index(exact) .
-chorki_series.publish_date: dateTime @index(hour) .
-chorki_series.release_date: date @index(day) .
-chorki_series.views: int @index(int) .
-chorki_series.deleted_at: dateTime @index(hour) .
-chorki_series.id: int @index(int) .
-chorki_series.imdb_rating: float @index(float) .
-chorki_series.show_in_mobile: string @index(exact) .
-chorki_series.show_in_tv: string @index(exact) .
-chorki_series.status: string @index(exact) .
-chorki_series.thumbnail: string @index(exact) .
-chorki_series.type: string @index(exact) .
-chorki_series.updated_at: dateTime @index(hour) .
-chorki_series.content_access: string @index(exact) .
-chorki_streams.show_in_mobile: string @index(exact) .
-chorki_streams.access_control_action: string @index(exact) .
-chorki_streams.cdn_auth_token: string @index(exact) .
-chorki_streams.content_rating: int @index(int) .
-chorki_streams.label: string @index(exact) .
-chorki_streams.seo_meta_id: int @index(int) .
-chorki_streams.views: int @index(int) .
-chorki_streams.description: string @index(exact) .
-chorki_streams.language_code: int @index(int) .
-chorki_streams.reactions: int @index(int) .
-chorki_streams.show_in_web: string @index(exact) .
-chorki_streams.slug: string @index(exact) .
-chorki_streams.thumbnail: string @index(exact) .
-chorki_streams.updated_at: dateTime @index(hour) .
-chorki_streams.created_by: int @index(int) .
-chorki_streams.mnemonic: string @index(exact) .
-chorki_streams.original_id: int @index(int) .
-chorki_streams.status: string @index(exact) .
-chorki_streams.viewlift_id: int @index(int) .
-chorki_streams.deleted_at: dateTime @index(hour) .
-chorki_streams.id: int @index(int) .
-chorki_streams.locale: string @index(exact) .
-chorki_streams.thumbnail_background: string @index(exact) .
-chorki_streams.type: string @index(exact) .
-chorki_streams.unpublish_date: dateTime @index(hour) .
-chorki_streams.cdn_auth_enabled: string @index(exact) .
-chorki_streams.poster: string @index(exact) .
-chorki_streams.publish_date: dateTime @index(hour) .
-chorki_streams.updated_by: int @index(int) .
-chorki_streams.ad_campaign_id: int @index(int) .
-chorki_streams.content_access: string @index(exact) .
-chorki_streams.starts_at: dateTime @index(hour) .
-chorki_streams.title: string @index(exact) .
-chorki_streams.age_rating: int @index(int) .
-chorki_streams.ends_at: dateTime @index(hour) .
-chorki_streams.show_in_tv: string @index(exact) .
-chorki_streams.url: string @index(exact) .
-chorki_streams.access_control_value: string @index(exact) .
-chorki_streams.created_at: dateTime @index(hour) .
-chorki_streams.poster_background: string @index(exact) .
-chorki_video_meta.video_id: int @index(int) .
-chorki_video_meta.featured: string @index(exact) .
-chorki_video_meta.id: int @index(int) .
-chorki_video_meta.meta_id: int @index(int) .
-chorki_video_meta.order: int @index(int) .
-chorki_watch_histories.sql.profile_id: int @index(int) .
-chorki_watch_histories.sql.watched_duration: int @index(int) .
-chorki_watch_histories.sql.content_id: int @index(int) .
-chorki_watch_histories.sql.customer_id: int @index(int) .
-chorki_watch_histories.sql.deleted_at: dateTime @index(hour) .
-chorki_watch_histories.sql.id: int @index(int) .
-chorki_watch_histories.sql.updated_at: dateTime @index(hour) .
-chorki_watch_histories.sql.watched_at: dateTime @index(hour) .
-chorki_watch_histories.sql.content_type: string @index(exact) .
-chorki_watch_histories.sql.created_at: dateTime @index(hour) .
-chorki_watch_histories.sql.device_id: int @index(int) .
+chorki_customers.qrcode: string @index(exact) .
+chorki_customers.timezone: string @index(exact) .
+chorki_customers.token: string @index(exact) .
+chorki_customers.updated_at: dateTime @index(hour) .
+chorki_customers.viewlift_id: string @index(exact) .
+chorki_customers.country: string @index(exact) .
+chorki_customers.email_verified_at: dateTime @index(hour) .
+chorki_customers.gender: string @index(exact) .
+chorki_customers.oauth_id: string @index(exact) .
+chorki_customers.otp: string @index(exact) .
+chorki_customers.password: string @index(exact) .
+chorki_customers.vppa_consented_at: dateTime @index(hour) .
+chorki_customers.email_consent: string @index(exact) .
+chorki_customers.metadata: string @index(exact) .
+chorki_customers.registered_platform: string @index(exact) .
+chorki_customers.id: int @index(int) .
+chorki_customers.is_banned: string @index(exact) .
+chorki_customers.is_privileged: string @index(exact) .
+chorki_customers.oauth_type: string @index(exact) .
+chorki_customers.tos_consent: string @index(exact) .
+chorki_customers.city: string @index(exact) .
+chorki_customers.date_of_birth: date @index(day) .
+chorki_customers.last_login_ip: string @index(exact) .
+chorki_customers.subscription_status: string @index(exact) .
+chorki_customers.registered_utm: string @index(exact) .
+chorki_customers.age_consent: string @index(exact) .
+chorki_customers.registration_ip: string @index(exact) .
+chorki_customers.phone: string @index(exact) .
+chorki_customers.postal_code: string @index(exact) .
+chorki_customers.registered_os: string @index(exact) .
+chorki_customers.created_at: dateTime @index(hour) .
+chorki_customers.deleted_at: dateTime @index(hour) .
+chorki_customers.last_login_at: dateTime @index(hour) .
+chorki_customers.name: string @index(exact) .
+chorki_customers.state: string @index(exact) .
+chorki_customers.avatar: string @index(exact) .
+chorki_customers.device_token: string @index(exact) .
+chorki_customers.email: string @index(exact) .
