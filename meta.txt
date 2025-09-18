@@ -7,3 +7,11 @@ _:chorki_videos_3300 <chorki_videos.series_id> "39649299344130048" .
 _:chorki_videos_3374 <chorki_videos.series_id> "39649299344130048" .
 _:chorki_videos_3460 <chorki_videos.series_id> "39649299344130048" .
 _:chorki_series_1071 <chorki_series.id> "39649299344130048" .
+
+
+
+
+
+curl -X POST localhost:8080/mutate?commitNow=true \
+     -H "Content-Type: application/json" \
+     -d @data_dgraph_1.json
