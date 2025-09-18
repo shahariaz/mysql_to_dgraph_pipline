@@ -1,825 +1,850 @@
 package main
 
 import (
-	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
-	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/dgraph-io/dgo/v230"
-	"github.com/dgraph-io/dgo/v230/protos/api"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	_ "github.com/go-sql-driver/mysql"
 )
 
-// Config for Dgraph connection
-type DgraphConfig struct {
-	Host    string `json:"host"`
-	Port    string `json:"port"`
-	Alpha   string `json:"alpha"`    // Alpha server address
-	Schema  string `json:"schema"`   // Schema file path
-	DataDir string `json:"data_dir"` // Directory containing batch files
+// ---------------- Schema Structs ----------------
+
+type Schema struct {
+	Database      string            `json:"database"`
+	Tables        map[string]*Table `json:"tables"`
+	Relationships []ForeignKey      `json:"relationships"`
 }
 
-// Default configuration with intelligent path detection
-func getDefaultConfig() DgraphConfig {
-	// Get current working directory
-	wd, _ := os.Getwd()
-	fmt.Printf("🗂️  Current working directory: %s\n", wd)
+type Table struct {
+	Name    string            `json:"name"`
+	Columns map[string]string `json:"columns"`
+}
 
-	// Try different possible paths for dgraph_export
-	possiblePaths := []string{
-		"dgraph_export",       // Same directory
-		"../dgraph_export",    // Parent directory
-		"../../dgraph_export", // Grandparent directory
+type ForeignKey struct {
+	ConstraintName string `json:"constraint_name"`
+	TableName      string `json:"table_name"`
+	ColumnName     string `json:"column_name"`
+	RefTableName   string `json:"referenced_table_name"`
+	RefColumnName  string `json:"referenced_column_name"`
+}
+
+// ---------------- Dgraph JSON Structs ----------------
+
+type DgraphNode struct {
+	UID        string                 `json:"uid,omitempty"`
+	DgraphType []string               `json:"dgraph.type,omitempty"`
+	Data       map[string]interface{} `json:"-"`
+}
+
+// Custom marshaler to flatten the structure
+func (d DgraphNode) MarshalJSON() ([]byte, error) {
+	result := make(map[string]interface{})
+
+	if d.UID != "" {
+		result["uid"] = d.UID
 	}
 
-	var exportDir, schemaFile string
+	if len(d.DgraphType) > 0 {
+		result["dgraph.type"] = d.DgraphType
+	}
 
-	// Find the correct path
-	for _, path := range possiblePaths {
-		if _, err := os.Stat(path); err == nil {
-			exportDir = path
-			schemaFile = filepath.Join(path, "schema.dgraph")
-			fmt.Printf("✅ Found dgraph_export directory at: %s\n", exportDir)
-			break
+	for k, v := range d.Data {
+		result[k] = v
+	}
+
+	return json.Marshal(result)
+}
+
+// ---------------- Schema Extraction ----------------
+
+func getTables(db *sql.DB, database string) ([]string, error) {
+	query := `
+		SELECT table_name
+		FROM information_schema.tables
+		WHERE table_schema = ? 
+		AND table_type = 'BASE TABLE'
+		AND table_name NOT LIKE '%.sql'
+		AND table_name NOT LIKE '%_backup'
+		AND table_name NOT LIKE '%_temp'
+		ORDER BY table_name
+	`
+	rows, err := db.Query(query, database)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			return nil, err
+		}
+		// Additional safety check to filter out invalid table names
+		if !strings.Contains(table, ".sql") &&
+			!strings.Contains(table, " ") &&
+			len(strings.TrimSpace(table)) > 0 {
+			tables = append(tables, strings.TrimSpace(table))
 		}
 	}
-
-	// If not found, use default and let validation catch it
-	if exportDir == "" {
-		exportDir = "dgraph_export"
-		schemaFile = "dgraph_export/schema.dgraph"
-		fmt.Printf("⚠️  dgraph_export directory not auto-detected, using default path\n")
-	}
-
-	return DgraphConfig{
-		Host:    "localhost",
-		Port:    "9080",
-		Alpha:   "localhost:9080",
-		Schema:  schemaFile,
-		DataDir: exportDir,
-	}
+	return tables, nil
 }
 
-// Validate configuration paths and provide helpful error messages
-func validateConfig(config DgraphConfig) error {
-	wd, _ := os.Getwd()
+func getColumns(db *sql.DB, database, table string) (map[string]string, error) {
+	query := `
+		SELECT column_name, data_type, is_nullable, column_default
+		FROM information_schema.columns
+		WHERE table_schema = ? AND table_name = ?
+		ORDER BY ordinal_position
+	`
+	rows, err := db.Query(query, database, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-	// Check schema file
-	if _, err := os.Stat(config.Schema); os.IsNotExist(err) {
-		fmt.Printf("❌ Schema file validation failed\n")
-		fmt.Printf("   Looking for: %s\n", config.Schema)
-		fmt.Printf("   From directory: %s\n", wd)
-
-		// List available files in current and parent directories
-		fmt.Printf("\n📁 Available files/directories in current location:\n")
-		listDirectoryContents(".")
-
-		if wd != filepath.Dir(wd) { // Not at root
-			fmt.Printf("\n📁 Available files/directories in parent location:\n")
-			listDirectoryContents("..")
+	columns := make(map[string]string)
+	for rows.Next() {
+		var colName, colType string
+		var isNullable, columnDefault sql.NullString
+		if err := rows.Scan(&colName, &colType, &isNullable, &columnDefault); err != nil {
+			return nil, err
 		}
-
-		return fmt.Errorf("schema file not found at %s", config.Schema)
+		columns[colName] = colType
 	}
-
-	// Check data directory
-	if _, err := os.Stat(config.DataDir); os.IsNotExist(err) {
-		return fmt.Errorf("data directory not found at %s", config.DataDir)
-	}
-
-	// Check if data directory has batch files
-	batchFiles, err := getBatchFiles(config.DataDir)
-	if err != nil {
-		return fmt.Errorf("error reading batch files: %v", err)
-	}
-
-	if len(batchFiles) == 0 {
-		return fmt.Errorf("no batch files found in %s", config.DataDir)
-	}
-
-	fmt.Printf("✅ Configuration validated successfully\n")
-	fmt.Printf("   Schema file: %s ✓\n", config.Schema)
-	fmt.Printf("   Data directory: %s ✓\n", config.DataDir)
-	fmt.Printf("   Batch files found: %d\n", len(batchFiles))
-
-	return nil
+	return columns, nil
 }
 
-// Helper function to list directory contents
-func listDirectoryContents(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		fmt.Printf("   Error reading directory %s: %v\n", dir, err)
-		return
+func getForeignKeys(db *sql.DB, database string) ([]ForeignKey, error) {
+	// Try multiple queries to detect foreign keys
+	queries := []string{
+		// Standard foreign key constraints
+		`SELECT constraint_name, table_name, column_name,
+		        referenced_table_name, referenced_column_name
+		 FROM information_schema.key_column_usage
+		 WHERE table_schema = ? AND referenced_table_name IS NOT NULL
+		 ORDER BY table_name, column_name`,
+
+		// Alternative query for some MySQL versions
+		`SELECT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME,
+		        REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+		 FROM information_schema.REFERENTIAL_CONSTRAINTS rc
+		 JOIN information_schema.KEY_COLUMN_USAGE kcu 
+		 ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+		 WHERE rc.CONSTRAINT_SCHEMA = ? AND kcu.TABLE_SCHEMA = ?
+		 ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME`,
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			fmt.Printf("   📁 %s/\n", entry.Name())
+	var fks []ForeignKey
+
+	for i, query := range queries {
+		var rows *sql.Rows
+		var err error
+
+		if i == 0 {
+			rows, err = db.Query(query, database)
 		} else {
-			fmt.Printf("   📄 %s\n", entry.Name())
-		}
-	}
-}
-
-// Enhanced connection with better error handling
-func connectDgraph(config DgraphConfig) (*dgo.Dgraph, *grpc.ClientConn, error) {
-	fmt.Printf("🔌 Connecting to Dgraph at %s...\n", config.Alpha)
-
-	// Set connection timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, config.Alpha,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(), // Wait for connection to be ready
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to Dgraph at %s: %v\nPlease ensure Dgraph is running", config.Alpha, err)
-	}
-
-	dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
-
-	// Test connection with a simple query
-	testCtx, testCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer testCancel()
-
-	_, err = dgraphClient.NewTxn().Query(testCtx, "{ q(func: uid(0x1)) { uid } }")
-	if err != nil && !strings.Contains(err.Error(), "uid 0x1 not found") {
-		conn.Close()
-		return nil, nil, fmt.Errorf("failed to test Dgraph connection: %v", err)
-	}
-
-	fmt.Printf("✅ Connected to Dgraph successfully!\n")
-	return dgraphClient, conn, nil
-}
-
-// Enhanced schema validation and auto-correction
-func validateAndCleanSchema(schemaFile string) (string, error) {
-	fmt.Printf("🔍 Validating schema file: %s\n", schemaFile)
-
-	schemaBytes, err := os.ReadFile(schemaFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to read schema file: %v", err)
-	}
-
-	schemaContent := string(schemaBytes)
-
-	// Check if file contains Go code (common mistake)
-	if strings.Contains(schemaContent, "package main") ||
-		strings.Contains(schemaContent, "import (") ||
-		strings.Contains(schemaContent, "func main()") {
-		fmt.Printf("❌ Schema file contains Go code instead of Dgraph schema!\n")
-		fmt.Printf("📄 First few lines of the file:\n")
-		lines := strings.Split(schemaContent, "\n")
-		for i, line := range lines {
-			if i >= 10 {
-				break
-			}
-			fmt.Printf("   %d: %s\n", i+1, line)
-		}
-		return "", fmt.Errorf("invalid schema file: contains Go code instead of Dgraph schema")
-	}
-
-	// Check for common schema patterns
-	hasTypes := strings.Contains(schemaContent, "type ")
-	hasPredicates := strings.Contains(schemaContent, ":")
-
-	if !hasTypes && !hasPredicates {
-		return "", fmt.Errorf("schema file appears to be empty or invalid - no types or predicates found")
-	}
-
-	// Clean and validate schema
-	cleanSchema := cleanSchemaContent(schemaContent)
-
-	fmt.Printf("✅ Schema validation passed\n")
-	fmt.Printf("📊 Schema size: %d bytes\n", len(cleanSchema))
-
-	return cleanSchema, nil
-}
-
-// Clean schema content by removing comments and empty lines
-func cleanSchemaContent(content string) string {
-	lines := strings.Split(content, "\n")
-	var cleanLines []string
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
-			continue
+			rows, err = db.Query(query, database, database)
 		}
 
-		cleanLines = append(cleanLines, line)
-	}
-
-	return strings.Join(cleanLines, "\n")
-}
-
-// Generate a sample schema if the current one is invalid
-func generateSampleSchema(outputPath string) error {
-	sampleSchema := `# Dgraph Schema for MySQL Export
-# Types
-type Person {
-    name: string @index(term, fulltext) .
-    email: string @index(hash) .
-    age: int .
-    created_at: datetime .
-    updated_at: datetime .
-}
-
-type Company {
-    name: string @index(term, fulltext) .
-    website: string .
-    industry: string @index(term) .
-    founded: datetime .
-    employees: [Person] .
-}
-
-type Product {
-    name: string @index(term, fulltext) .
-    description: string @index(fulltext) .
-    price: float .
-    category: Category .
-    created_at: datetime .
-}
-
-type Category {
-    name: string @index(term) .
-    description: string .
-    products: [Product] .
-}
-
-type Order {
-    order_id: string @index(hash) .
-    total: float .
-    status: string @index(term) .
-    customer: Person .
-    products: [Product] .
-    created_at: datetime .
-}
-
-# Predicates (if not using types)
-name: string @index(term, fulltext) .
-email: string @index(hash) .
-age: int .
-price: float .
-description: string @index(fulltext) .
-created_at: datetime .
-updated_at: datetime .
-`
-
-	if err := os.WriteFile(outputPath, []byte(sampleSchema), 0644); err != nil {
-		return fmt.Errorf("failed to write sample schema: %v", err)
-	}
-
-	fmt.Printf("✅ Sample schema generated at: %s\n", outputPath)
-	return nil
-}
-
-// Enhanced schema loading with validation
-func loadSchemaWithValidation(client *dgo.Dgraph, schemaFile string) error {
-	fmt.Printf("📋 Loading and validating schema from %s...\n", schemaFile)
-
-	// Validate and clean schema
-	schemaContent, err := validateAndCleanSchema(schemaFile)
-	if err != nil {
-		fmt.Printf("❌ Schema validation failed: %v\n", err)
-
-		// Offer to generate a sample schema
-		fmt.Printf("\n💡 Would you like me to generate a sample schema? (y/n): ")
-		var response string
-		fmt.Scanln(&response)
-
-		if strings.ToLower(strings.TrimSpace(response)) == "y" {
-			samplePath := filepath.Join(filepath.Dir(schemaFile), "sample_schema.dgraph")
-			if genErr := generateSampleSchema(samplePath); genErr != nil {
-				return fmt.Errorf("failed to generate sample schema: %v", genErr)
-			}
-
-			fmt.Printf("\n📝 Please:\n")
-			fmt.Printf("   1. Review the sample schema at: %s\n", samplePath)
-			fmt.Printf("   2. Customize it based on your MySQL table structure\n")
-			fmt.Printf("   3. Replace your current schema file or update the path\n")
-			fmt.Printf("   4. Run the importer again\n")
-		}
-
-		return err
-	}
-
-	// Count schema elements
-	lines := strings.Split(schemaContent, "\n")
-	typeCount := 0
-	predicateCount := 0
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "type ") {
-			typeCount++
-		} else if strings.Contains(line, ":") && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "//") {
-			predicateCount++
-		}
-	}
-
-	fmt.Printf("📋 Schema contains: %d types, %d predicates\n", typeCount, predicateCount)
-
-	// Apply schema to Dgraph
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	op := &api.Operation{Schema: schemaContent}
-
-	if err := client.Alter(ctx, op); err != nil {
-		// More detailed error handling
-		if strings.Contains(err.Error(), "lexing") {
-			return fmt.Errorf("schema syntax error: %v\n\n💡 Common issues:\n- Check for typos in type definitions\n- Ensure proper predicate syntax (name: type @index(...))\n- Remove any non-schema content", err)
-		}
-		return fmt.Errorf("failed to apply schema: %v", err)
-	}
-
-	fmt.Printf("✅ Schema loaded successfully!\n")
-	return nil
-}
-
-// Check what files are in the dgraph_export directory
-func inspectExportDirectory(dataDir string) error {
-	fmt.Printf("🗂️  Inspecting export directory: %s\n", dataDir)
-
-	entries, err := os.ReadDir(dataDir)
-	if err != nil {
-		return fmt.Errorf("failed to read directory: %v", err)
-	}
-
-	fmt.Printf("📁 Found %d files/directories:\n", len(entries))
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			fmt.Printf("   📁 %s/ (directory)\n", entry.Name())
-		} else {
-			info, _ := entry.Info()
-			fmt.Printf("   📄 %s (%d bytes)\n", entry.Name(), info.Size())
-
-			// Show first few lines of schema files
-			if strings.HasSuffix(entry.Name(), ".dgraph") || strings.HasSuffix(entry.Name(), ".schema") {
-				filePath := filepath.Join(dataDir, entry.Name())
-				showFilePreview(filePath)
-			}
-		}
-	}
-
-	return nil
-}
-
-// Show preview of a file
-func showFilePreview(filePath string) {
-	fmt.Printf("   👀 Preview of %s:\n", filepath.Base(filePath))
-
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		fmt.Printf("      ❌ Error reading file: %v\n", err)
-		return
-	}
-
-	lines := strings.Split(string(content), "\n")
-	maxLines := 5
-	if len(lines) < maxLines {
-		maxLines = len(lines)
-	}
-
-	for i := 0; i < maxLines; i++ {
-		line := strings.TrimSpace(lines[i])
-		if len(line) > 80 {
-			line = line[:80] + "..."
-		}
-		fmt.Printf("      %d: %s\n", i+1, line)
-	}
-
-	if len(lines) > maxLines {
-		fmt.Printf("      ... (%d more lines)\n", len(lines)-maxLines)
-	}
-}
-
-// Get all batch files sorted by name with better validation
-func getBatchFiles(dataDir string) ([]string, error) {
-	pattern := filepath.Join(dataDir, "batch_*.json")
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("error finding batch files with pattern %s: %v", pattern, err)
-	}
-
-	// Validate each file
-	var validFiles []string
-	for _, file := range files {
-		if info, err := os.Stat(file); err == nil && info.Size() > 0 {
-			validFiles = append(validFiles, file)
-		} else if err != nil {
-			fmt.Printf("⚠️  Skipping file %s: %v\n", filepath.Base(file), err)
-		} else {
-			fmt.Printf("⚠️  Skipping empty file %s\n", filepath.Base(file))
-		}
-	}
-
-	sort.Strings(validFiles)
-	return validFiles, nil
-}
-
-// Enhanced batch import with better error handling and progress
-func importBatch(client *dgo.Dgraph, batchFile string) error {
-	fileName := filepath.Base(batchFile)
-	fmt.Printf("📦 Importing batch: %s", fileName)
-
-	// Check file size
-	fileInfo, err := os.Stat(batchFile)
-	if err != nil {
-		return fmt.Errorf("failed to stat file: %v", err)
-	}
-	fmt.Printf(" (%.2f KB)", float64(fileInfo.Size())/1024)
-
-	// Read batch file
-	data, err := os.ReadFile(batchFile)
-	if err != nil {
-		return fmt.Errorf("failed to read batch file: %v", err)
-	}
-
-	// Validate JSON before sending
-	var batchData interface{}
-	if err := json.Unmarshal(data, &batchData); err != nil {
-		return fmt.Errorf("invalid JSON in batch file: %v", err)
-	}
-
-	// Count expected nodes (rough estimate)
-	var nodeCount int
-	switch v := batchData.(type) {
-	case []interface{}:
-		nodeCount = len(v)
-	case map[string]interface{}:
-		nodeCount = 1
-	}
-
-	// Create mutation with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	mu := &api.Mutation{
-		SetJson:   data,
-		CommitNow: true,
-	}
-
-	// Execute mutation
-	start := time.Now()
-	assigned, err := client.NewTxn().Mutate(ctx, mu)
-	if err != nil {
-		return fmt.Errorf("failed to mutate: %v", err)
-	}
-
-	duration := time.Since(start)
-
-	fmt.Printf("\n  ✅ Imported %d nodes (expected ~%d) in %v\n", len(assigned.Uids), nodeCount, duration)
-	return nil
-}
-
-// Enhanced import with better progress tracking and statistics
-func importAllBatches(client *dgo.Dgraph, dataDir string) error {
-	batchFiles, err := getBatchFiles(dataDir)
-	if err != nil {
-		return fmt.Errorf("failed to get batch files: %v", err)
-	}
-
-	if len(batchFiles) == 0 {
-		return fmt.Errorf("no valid batch files found in %s", dataDir)
-	}
-
-	fmt.Printf("📁 Found %d valid batch files to import\n", len(batchFiles))
-
-	// Calculate total size
-	var totalSize int64
-	for _, file := range batchFiles {
-		if info, err := os.Stat(file); err == nil {
-			totalSize += info.Size()
-		}
-	}
-	fmt.Printf("📊 Total data size: %.2f MB\n", float64(totalSize)/(1024*1024))
-
-	totalStart := time.Now()
-	successCount := 0
-	var failedFiles []string
-
-	for i, batchFile := range batchFiles {
-		fmt.Printf("\n[%d/%d] ", i+1, len(batchFiles))
-
-		if err := importBatch(client, batchFile); err != nil {
-			fileName := filepath.Base(batchFile)
-			fmt.Printf("❌ Failed to import %s: %v\n", fileName, err)
-			failedFiles = append(failedFiles, fileName)
-			continue
-		}
-
-		successCount++
-
-		// Show progress
-		progress := float64(i+1) / float64(len(batchFiles)) * 100
-		elapsed := time.Since(totalStart)
-		fmt.Printf("  📈 Progress: %.1f%% (Elapsed: %v)\n", progress, elapsed.Round(time.Second))
-	}
-
-	totalDuration := time.Since(totalStart)
-	fmt.Printf("\n🎉 Import completed!\n")
-	fmt.Printf("✅ Successfully imported: %d/%d batches\n", successCount, len(batchFiles))
-	fmt.Printf("⏱️  Total time: %v\n", totalDuration)
-	fmt.Printf("📊 Average rate: %.2f batches/minute\n", float64(successCount)/totalDuration.Minutes())
-
-	if len(failedFiles) > 0 {
-		fmt.Printf("⚠️  %d batches failed to import:\n", len(failedFiles))
-		for _, file := range failedFiles {
-			fmt.Printf("   - %s\n", file)
-		}
-	}
-
-	return nil
-}
-
-// Enhanced verification with more detailed statistics
-func verifyImport(client *dgo.Dgraph, expectedTypes []string) error {
-	fmt.Printf("\n🔍 Verifying import...\n")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	totalNodes := 0
-
-	for _, nodeType := range expectedTypes {
-		query := fmt.Sprintf(`
-		{
-			count(func: type(%s)) {
-				count(uid)
-			}
-		}`, nodeType)
-
-		resp, err := client.NewTxn().Query(ctx, query)
 		if err != nil {
-			fmt.Printf("❌ Failed to query %s: %v\n", nodeType, err)
+			fmt.Printf("Query %d failed: %v\n", i+1, err)
 			continue
 		}
 
-		var result map[string][]map[string]int
-		if err := json.Unmarshal(resp.Json, &result); err != nil {
-			fmt.Printf("❌ Failed to parse response for %s: %v\n", nodeType, err)
-			continue
-		}
-
-		if count, ok := result["count"]; ok && len(count) > 0 {
-			if c, ok := count[0]["count"]; ok {
-				fmt.Printf("  ✅ %s: %,d records\n", nodeType, c)
-				totalNodes += c
+		for rows.Next() {
+			var fk ForeignKey
+			if err := rows.Scan(&fk.ConstraintName, &fk.TableName, &fk.ColumnName, &fk.RefTableName, &fk.RefColumnName); err != nil {
+				continue
 			}
+			fks = append(fks, fk)
+		}
+		rows.Close()
+
+		if len(fks) > 0 {
+			break // Found foreign keys, no need to try other queries
 		}
 	}
 
-	if totalNodes > 0 {
-		fmt.Printf("\n📊 Total nodes imported: %,d\n", totalNodes)
-	}
-
-	// Additional verification - check for any orphaned nodes
-	orphanQuery := `
-	{
-		orphans(func: has(uid)) @filter(NOT type(Person) AND NOT type(Company) AND NOT type(Order) AND NOT type(Product) AND NOT type(Category) AND NOT type(Review)) {
-			count(uid)
-		}
-	}`
-
-	if resp, err := client.NewTxn().Query(ctx, orphanQuery); err == nil {
-		var result map[string][]map[string]int
-		if json.Unmarshal(resp.Json, &result) == nil {
-			if orphans, ok := result["orphans"]; ok && len(orphans) > 0 {
-				if count, ok := orphans[0]["count"]; ok && count > 0 {
-					fmt.Printf("⚠️  Found %d nodes without recognized types\n", count)
-				}
-			}
+	// If no foreign keys found through constraints, try to infer them from naming conventions
+	if len(fks) == 0 {
+		inferredFKs, err := inferForeignKeys(db, database)
+		if err == nil {
+			fks = append(fks, inferredFKs...)
 		}
 	}
 
-	return nil
+	return fks, nil
 }
 
-// Enhanced type extraction with better parsing
-func getExpectedTypes(schemaFile string) ([]string, error) {
-	data, err := os.ReadFile(schemaFile)
+// Infer foreign keys based on naming conventions
+func inferForeignKeys(db *sql.DB, database string) ([]ForeignKey, error) {
+	var fks []ForeignKey
+
+	// Get all tables and their columns
+	tables, err := getTables(db, database)
 	if err != nil {
 		return nil, err
 	}
 
-	var types []string
-	lines := strings.Split(string(data), "\n")
+	tableColumns := make(map[string]map[string]string)
+	for _, table := range tables {
+		cols, err := getColumns(db, database, table)
+		if err != nil {
+			continue
+		}
+		tableColumns[table] = cols
+	}
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		// More robust type detection
-		if strings.HasPrefix(line, "type ") && strings.Contains(line, "{") {
-			// Extract type name more carefully
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				typeName := strings.TrimSpace(parts[1])
-				// Remove any trailing characters like '{'
-				typeName = strings.Split(typeName, "{")[0]
-				typeName = strings.TrimSpace(typeName)
-				if typeName != "" && !contains(types, typeName) {
-					types = append(types, typeName)
+	// Create a map of table names for easier matching
+	tableNameMap := make(map[string]string)
+	for _, table := range tables {
+		tableNameMap[strings.ToLower(table)] = table
+
+		// Also try without prefix (e.g., chorki_series -> series)
+		parts := strings.Split(strings.ToLower(table), "_")
+		if len(parts) > 1 {
+			suffix := strings.Join(parts[1:], "_")
+			tableNameMap[suffix] = table
+
+			// Also try singular/plural variations
+			if strings.HasSuffix(suffix, "s") {
+				tableNameMap[strings.TrimSuffix(suffix, "s")] = table
+			} else {
+				tableNameMap[suffix+"s"] = table
+			}
+		}
+	}
+
+	fmt.Printf("Inferring relationships from naming patterns...\n")
+
+	// Look for foreign key patterns
+	for tableName, columns := range tableColumns {
+		for colName := range columns {
+			colLower := strings.ToLower(colName)
+
+			// Pattern 1: column ends with _id
+			if strings.HasSuffix(colLower, "_id") && colLower != "id" {
+				refTable := strings.TrimSuffix(colLower, "_id")
+
+				// Try different variations to find the referenced table
+				possibleRefs := []string{
+					refTable,
+					refTable + "s",
+					strings.TrimSuffix(refTable, "s"),
+				}
+
+				// Add prefixed versions (e.g., series_id -> chorki_series)
+				if strings.Contains(tableName, "_") {
+					prefix := strings.Split(tableName, "_")[0]
+					for _, ref := range []string{refTable, refTable + "s", strings.TrimSuffix(refTable, "s")} {
+						possibleRefs = append(possibleRefs, prefix+"_"+ref)
+					}
+				}
+
+				for _, possibleRef := range possibleRefs {
+					if actualTable, exists := tableNameMap[possibleRef]; exists {
+						fk := ForeignKey{
+							ConstraintName: fmt.Sprintf("inferred_fk_%s_%s", tableName, colName),
+							TableName:      tableName,
+							ColumnName:     colName,
+							RefTableName:   actualTable,
+							RefColumnName:  "id",
+						}
+						fks = append(fks, fk)
+						fmt.Printf("  Inferred: %s.%s -> %s.id\n", tableName, colName, actualTable)
+						break
+					}
 				}
 			}
 		}
 	}
 
-	return types, nil
+	return fks, nil
 }
 
-// Helper function to check if slice contains string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
+// ---------------- Type Conversion (IMPROVED) ----------------
+
+func mysqlToDgraphType(mysqlType string) string {
+	mysqlType = strings.ToLower(mysqlType)
+	switch {
+	case strings.Contains(mysqlType, "tinyint(1)") || strings.Contains(mysqlType, "bool"):
+		return "bool"
+	case strings.Contains(mysqlType, "int") || strings.Contains(mysqlType, "bigint") ||
+		strings.Contains(mysqlType, "smallint") || strings.Contains(mysqlType, "mediumint"):
+		return "int"
+	case strings.Contains(mysqlType, "float") || strings.Contains(mysqlType, "double") ||
+		strings.Contains(mysqlType, "decimal") || strings.Contains(mysqlType, "numeric"):
+		return "float"
+	case mysqlType == "date":
+		return "datetime" // Dgraph uses datetime for dates
+	case strings.Contains(mysqlType, "datetime") || strings.Contains(mysqlType, "timestamp"):
+		return "datetime"
+	case strings.Contains(mysqlType, "text") || strings.Contains(mysqlType, "varchar") ||
+		strings.Contains(mysqlType, "char") || strings.Contains(mysqlType, "json"):
+		return "string"
+	default:
+		return "string"
 	}
-	return false
 }
 
-// Enhanced health check with more detailed diagnostics
-func checkDgraphHealth(host, port string) error {
-	fmt.Printf("🏥 Checking Dgraph health at %s:%s...\n", host, port)
+func convertValue(value string, mysqlType string) (interface{}, error) {
+	if value == "" || strings.ToLower(value) == "null" {
+		return nil, nil
+	}
 
-	url := fmt.Sprintf("http://%s:%s/health", host, port)
+	dgraphType := mysqlToDgraphType(mysqlType)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	switch dgraphType {
+	case "int":
+		return strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	case "float":
+		return strconv.ParseFloat(strings.TrimSpace(value), 64)
+	case "bool":
+		// Handle various boolean representations
+		val := strings.ToLower(strings.TrimSpace(value))
+		switch val {
+		case "1", "true", "yes", "on":
+			return true, nil
+		case "0", "false", "no", "off":
+			return false, nil
+		default:
+			return strconv.ParseBool(val)
+		}
+	case "datetime":
+		// Try multiple datetime formats
+		formats := []string{
+			"2006-01-02 15:04:05",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02T15:04:05",
+			"2006/01/02 15:04:05",
+			"2006-01-02",
+		}
+		for _, format := range formats {
+			if t, err := time.Parse(format, strings.TrimSpace(value)); err == nil {
+				return t.Format(time.RFC3339), nil
+			}
+		}
+		return value, nil // Return as string if parsing fails
+	default:
+		// Clean string value
+		cleaned := strings.TrimSpace(value)
+		// Escape special characters for JSON
+		cleaned = strings.ReplaceAll(cleaned, "\\", "\\\\")
+		cleaned = strings.ReplaceAll(cleaned, "\"", "\\\"")
+		cleaned = strings.ReplaceAll(cleaned, "\n", "\\n")
+		cleaned = strings.ReplaceAll(cleaned, "\r", "\\r")
+		cleaned = strings.ReplaceAll(cleaned, "\t", "\\t")
+		return cleaned, nil
+	}
+}
+
+// ---------------- UID Generation (IMPROVED) ----------------
+
+type UIDManager struct {
+	uidMap  map[string]map[string]string // table -> original_id -> uid
+	counter int64
+}
+
+func NewUIDManager() *UIDManager {
+	return &UIDManager{
+		uidMap:  make(map[string]map[string]string),
+		counter: 1000,
+	}
+}
+
+func (u *UIDManager) GetUID(tableName, originalID string) string {
+	if u.uidMap[tableName] == nil {
+		u.uidMap[tableName] = make(map[string]string)
+	}
+
+	if uid, exists := u.uidMap[tableName][originalID]; exists {
+		return uid
+	}
+
+	u.counter++
+	// Use blank node syntax for Dgraph
+	uid := fmt.Sprintf("_:%s_%s_%d", tableName, originalID, u.counter)
+	u.uidMap[tableName][originalID] = uid
+	return uid
+}
+
+func (u *UIDManager) SaveMapping(filename string) error {
+	f, err := os.Create(filename)
 	if err != nil {
-		return fmt.Errorf("Dgraph health check failed - server not responding: %v", err)
+		return err
 	}
-	defer resp.Body.Close()
+	defer f.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	encoder := json.NewEncoder(f)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(u.uidMap)
+}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Dgraph health check failed with status %d: %s", resp.StatusCode, string(body))
+// ---------------- Dgraph JSON Export (IMPROVED) ----------------
+
+func getRowCount(db *sql.DB, tableName string) (int64, error) {
+	var count int64
+	query := fmt.Sprintf("SELECT COUNT(*) FROM `%s`", tableName)
+	err := db.QueryRow(query).Scan(&count)
+	return count, err
+}
+
+func exportToDgraphJSON(db *sql.DB, schema Schema, batchSize int, outputDir string) error {
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return err
 	}
 
-	// Try to parse health response for more details
-	var healthData map[string]interface{}
-	if json.Unmarshal(body, &healthData) == nil {
-		if status, ok := healthData["status"].(string); ok {
-			fmt.Printf("📊 Dgraph status: %s\n", status)
+	uidManager := NewUIDManager()
+
+	// First pass: Create UID mappings for all primary keys
+	fmt.Println("Creating UID mappings...")
+	for _, table := range schema.Tables {
+		if strings.Contains(table.Name, ".sql") || strings.TrimSpace(table.Name) == "" {
+			fmt.Printf("Skipping invalid table: %s\n", table.Name)
+			continue
 		}
+
+		fmt.Printf("Creating UIDs for table: %s\n", table.Name)
+
+		// Find primary key column
+		query := fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", table.Name)
+		rows, err := db.Query(query)
+		if err != nil {
+			fmt.Printf("Error querying table %s: %v\n", table.Name, err)
+			continue
+		}
+
+		cols, err := rows.Columns()
+		if err != nil {
+			rows.Close()
+			fmt.Printf("Error getting columns for table %s: %v\n", table.Name, err)
+			continue
+		}
+		rows.Close()
+
+		// Get all records for UID mapping
+		query = fmt.Sprintf("SELECT * FROM `%s`", table.Name)
+		rows, err = db.Query(query)
+		if err != nil {
+			fmt.Printf("Error querying all records from table %s: %v\n", table.Name, err)
+			continue
+		}
+
+		values := make([]sql.RawBytes, len(cols))
+		scanArgs := make([]interface{}, len(cols))
+		for i := range values {
+			scanArgs[i] = &values[i]
+		}
+
+		recordCount := 0
+		for rows.Next() {
+			if err := rows.Scan(scanArgs...); err != nil {
+				fmt.Printf("Error scanning row in table %s: %v\n", table.Name, err)
+				continue
+			}
+
+			// Find primary key
+			var pk string
+			for i, col := range cols {
+				if strings.ToLower(col) == "id" || strings.HasSuffix(strings.ToLower(col), "_id") {
+					pk = string(values[i])
+					break
+				}
+			}
+
+			if pk == "" && len(values) > 0 {
+				// Use first column as fallback
+				pk = string(values[0])
+			}
+
+			if pk != "" && strings.TrimSpace(pk) != "" && strings.ToLower(pk) != "null" {
+				uidManager.GetUID(table.Name, pk)
+				recordCount++
+			}
+		}
+		rows.Close()
+		fmt.Printf("Created UIDs for %d records in table %s\n", recordCount, table.Name)
+	}
+
+	// Save UID mapping
+	if err := uidManager.SaveMapping(fmt.Sprintf("%s/uid_mapping.json", outputDir)); err != nil {
+		return err
+	}
+
+	// Second pass: Export data in batches
+	fmt.Println("Exporting data in batches...")
+	totalBatches := 0
+
+	for _, table := range schema.Tables {
+		if strings.Contains(table.Name, ".sql") || strings.TrimSpace(table.Name) == "" {
+			fmt.Printf("Skipping invalid table: %s\n", table.Name)
+			continue
+		}
+
+		fmt.Printf("Processing table: %s\n", table.Name)
+
+		count, err := getRowCount(db, table.Name)
+		if err != nil {
+			fmt.Printf("Error getting row count for table %s: %v\n", table.Name, err)
+			continue
+		}
+
+		if count == 0 {
+			fmt.Printf("  Table %s is empty, skipping\n", table.Name)
+			continue
+		}
+
+		fmt.Printf("  Total rows: %d\n", count)
+
+		// Process in batches
+		for offset := int64(0); offset < count; offset += int64(batchSize) {
+			var batch []DgraphNode
+
+			query := fmt.Sprintf("SELECT * FROM `%s` LIMIT %d OFFSET %d", table.Name, batchSize, offset)
+			rows, err := db.Query(query)
+			if err != nil {
+				fmt.Printf("Error querying batch from table %s: %v\n", table.Name, err)
+				break
+			}
+
+			cols, _ := rows.Columns()
+			values := make([]sql.RawBytes, len(cols))
+			scanArgs := make([]interface{}, len(cols))
+			for i := range values {
+				scanArgs[i] = &values[i]
+			}
+
+			for rows.Next() {
+				if err := rows.Scan(scanArgs...); err != nil {
+					rows.Close()
+					return err
+				}
+
+				// Find primary key for UID
+				var pk string
+				for i, col := range cols {
+					if strings.ToLower(col) == "id" || strings.HasSuffix(strings.ToLower(col), "_id") {
+						pk = string(values[i])
+						break
+					}
+				}
+
+				if pk == "" && len(values) > 0 {
+					pk = string(values[0])
+				}
+
+				if pk == "" || strings.ToLower(pk) == "null" {
+					continue // Skip records without valid primary key
+				}
+
+				uid := uidManager.GetUID(table.Name, pk)
+
+				node := DgraphNode{
+					UID:        uid,
+					DgraphType: []string{table.Name},
+					Data:       make(map[string]interface{}),
+				}
+
+				// Process each column
+				for i, col := range cols {
+					val := string(values[i])
+					if val == "" || strings.ToLower(val) == "null" {
+						continue
+					}
+
+					mysqlType := table.Columns[col]
+
+					// Use simple predicate names without table prefix
+					predicate := col
+
+					// Check if this is a foreign key
+					isFK := false
+					var refTable string
+					for _, fk := range schema.Relationships {
+						if fk.TableName == table.Name && fk.ColumnName == col {
+							isFK = true
+							refTable = fk.RefTableName
+							break
+						}
+					}
+
+					if isFK && val != "" && strings.ToLower(val) != "null" {
+						// Reference to another node - make sure referenced UID exists
+						refUID := uidManager.GetUID(refTable, val)
+						node.Data[predicate] = map[string]string{"uid": refUID}
+						fmt.Printf("    FK: %s.%s -> %s (UID: %s)\n", table.Name, col, refTable, refUID)
+					} else {
+						// Convert value based on type
+						convertedVal, err := convertValue(val, mysqlType)
+						if err != nil {
+							fmt.Printf("    Warning: Failed to convert value '%s' for column '%s': %v\n", val, col, err)
+							// Use original value as string
+							node.Data[predicate] = val
+						} else if convertedVal != nil {
+							node.Data[predicate] = convertedVal
+						}
+					}
+				}
+
+				batch = append(batch, node)
+			}
+			rows.Close()
+
+			// Save batch - Use proper format for Dgraph
+			if len(batch) > 0 {
+				batchNum := totalBatches + 1
+				filename := fmt.Sprintf("%s/batch_%04d.json", outputDir, batchNum)
+
+				f, err := os.Create(filename)
+				if err != nil {
+					return err
+				}
+
+				encoder := json.NewEncoder(f)
+				encoder.SetIndent("", "  ")
+				// Wrap in "set" for Dgraph format
+				wrapper := map[string][]DgraphNode{"set": batch}
+				if err := encoder.Encode(wrapper); err != nil {
+					f.Close()
+					return err
+				}
+				f.Close()
+
+				fmt.Printf("  Batch %d saved: %s (%d records)\n", batchNum, filename, len(batch))
+				totalBatches++
+			}
+		}
+	}
+
+	fmt.Printf("Export completed! Total batches: %d\n", totalBatches)
+	return nil
+}
+
+// ---------------- Schema Export (IMPROVED RELATIONSHIPS) ----------------
+
+func exportDgraphSchema(schema Schema, file string) error {
+	f, err := os.Create(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Header comments
+	fmt.Fprintf(f, "# Dgraph Schema Generated from MySQL Database: %s\n", schema.Database)
+	fmt.Fprintf(f, "# Generated: %s\n", time.Now().Format(time.RFC3339))
+	fmt.Fprintf(f, "# Total Tables: %d, Relationships: %d\n\n", len(schema.Tables), len(schema.Relationships))
+
+	// Define types first
+	for _, t := range schema.Tables {
+		fmt.Fprintf(f, "type %s {\n", t.Name)
+
+		// Add predicates for this type
+		for col := range t.Columns {
+			fmt.Fprintf(f, "    %s\n", col)
+		}
+
+		fmt.Fprintf(f, "}\n\n")
+	}
+
+	// Define predicates with proper syntax
+	processedPredicates := make(map[string]bool)
+
+	for _, t := range schema.Tables {
+		for col, typ := range t.Columns {
+			if processedPredicates[col] {
+				continue // Skip duplicates
+			}
+
+			dgraphType := mysqlToDgraphType(typ)
+
+			// Generate appropriate indexes
+			var index string
+			switch dgraphType {
+			case "string":
+				if strings.Contains(strings.ToLower(col), "email") {
+					index = " @index(hash)"
+				} else if strings.Contains(strings.ToLower(col), "name") ||
+					strings.Contains(strings.ToLower(col), "title") {
+					index = " @index(term, fulltext)"
+				} else {
+					index = " @index(exact)"
+				}
+			case "int":
+				index = " @index(int)"
+			case "float":
+				index = " @index(float)"
+			case "datetime":
+				index = " @index(hour)"
+			case "bool":
+				index = " @index(bool)"
+			}
+
+			fmt.Fprintf(f, "%s: %s%s .\n", col, dgraphType, index)
+			processedPredicates[col] = true
+		}
+	}
+
+	// Foreign key predicates - IMPROVED
+	if len(schema.Relationships) > 0 {
+		fmt.Fprintf(f, "\n# Foreign key relationships\n")
+		processedFKs := make(map[string]bool)
+
+		for _, fk := range schema.Relationships {
+			fkKey := fk.ColumnName
+			if processedFKs[fkKey] {
+				continue
+			}
+
+			// Add comment explaining the relationship
+			fmt.Fprintf(f, "# %s.%s -> %s.%s\n",
+				fk.TableName, fk.ColumnName, fk.RefTableName, fk.RefColumnName)
+
+			// Check if this FK predicate was already defined as a regular predicate
+			if !processedPredicates[fk.ColumnName] {
+				fmt.Fprintf(f, "%s: uid @reverse .\n", fk.ColumnName)
+			} else {
+				// If it was already defined, just add a comment
+				fmt.Fprintf(f, "# %s already defined above as uid reference\n", fk.ColumnName)
+			}
+
+			processedFKs[fkKey] = true
+		}
+	} else {
+		fmt.Fprintf(f, "\n# No foreign key relationships detected\n")
+		fmt.Fprintf(f, "# If you have relationships, they may need to be defined manually\n")
 	}
 
 	return nil
 }
 
-// Enhanced interactive configuration with validation
-func getConfig() DgraphConfig {
-	config := getDefaultConfig()
-
-	fmt.Printf("\n🔧 Dgraph Import Configuration\n")
-	fmt.Printf("================================\n")
-	fmt.Printf("Current settings:\n")
-	fmt.Printf("  Dgraph Alpha: %s\n", config.Alpha)
-	fmt.Printf("  Schema file: %s\n", config.Schema)
-	fmt.Printf("  Data directory: %s\n", config.DataDir)
-	fmt.Printf("\nPress Enter to use defaults or type 'custom' to customize: ")
-
-	var input string
-	fmt.Scanln(&input)
-
-	if strings.ToLower(strings.TrimSpace(input)) == "custom" {
-		fmt.Printf("\n🎛️  Custom Configuration\n")
-		fmt.Printf("======================\n")
-
-		fmt.Printf("Dgraph Alpha address [%s]: ", config.Alpha)
-		fmt.Scanln(&input)
-		if strings.TrimSpace(input) != "" {
-			config.Alpha = strings.TrimSpace(input)
-		}
-
-		fmt.Printf("Schema file path [%s]: ", config.Schema)
-		fmt.Scanln(&input)
-		if strings.TrimSpace(input) != "" {
-			config.Schema = strings.TrimSpace(input)
-		}
-
-		fmt.Printf("Data directory [%s]: ", config.DataDir)
-		fmt.Scanln(&input)
-		if strings.TrimSpace(input) != "" {
-			config.DataDir = strings.TrimSpace(input)
-		}
-
-		fmt.Printf("\n📝 Updated configuration:\n")
-		fmt.Printf("  Dgraph Alpha: %s\n", config.Alpha)
-		fmt.Printf("  Schema file: %s\n", config.Schema)
-		fmt.Printf("  Data directory: %s\n", config.DataDir)
-	}
-
-	return config
-}
-
-// Show helpful startup information
-func showStartupInfo() {
-	fmt.Printf("🚀 Dgraph Data Importer\n")
-	fmt.Printf("========================\n")
-	fmt.Printf("Version: 2.0 Enhanced\n")
-	fmt.Printf("Features: Auto-path detection, Enhanced validation, Progress tracking\n")
-	fmt.Printf("Time: %s\n\n", time.Now().Format("2006-01-02 15:04:05"))
-}
-
-// Show completion information
-func showCompletionInfo() {
-	fmt.Printf("\n🎉 All done! Your MySQL data is now in Dgraph!\n")
-	fmt.Printf("🌐 You can explore your data at: http://localhost:8000\n")
-	fmt.Printf("📖 Dgraph documentation: https://dgraph.io/docs/\n")
-	fmt.Printf("🔍 Try some queries in Ratel (the Dgraph UI)\n")
-	fmt.Printf("\n💡 Sample queries to try:\n")
-	fmt.Printf("   Query all types: { q(func: has(dgraph.type)) { dgraph.type } }\n")
-	fmt.Printf("   Count by type: { q(func: type(YourType)) { count(uid) } }\n")
-}
+// ---------------- Main Function ----------------
 
 func main() {
-	showStartupInfo()
+	// Database configuration
+	user := "root"
+	password := "root"
+	host := "127.0.0.1"
+	port := "3306"
+	database := "dump" // CHANGE THIS
 
-	// Get configuration with auto-detection
-	config := getConfig()
+	// Batch configuration - smaller batches for better performance
+	batchSize := 1000 // Reduced batch size
+	outputDir := "dgraph_export"
 
-	// Validate configuration paths
-	fmt.Printf("\n🔍 Validating configuration...\n")
-	if err := validateConfig(config); err != nil {
-		fmt.Printf("❌ Configuration validation failed: %v\n", err)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, host, port, database)
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	defer db.Close()
 
-		// Show directory inspection
-		if _, statErr := os.Stat(config.DataDir); statErr == nil {
-			inspectExportDirectory(config.DataDir)
+	// Test connection
+	if err := db.Ping(); err != nil {
+		log.Fatal("Failed to ping database:", err)
+	}
+	fmt.Println("Connected to MySQL database")
+
+	// Extract schema
+	fmt.Println("Extracting database schema...")
+	schema := Schema{
+		Database: database,
+		Tables:   make(map[string]*Table),
+	}
+
+	tables, err := getTables(db, database)
+	if err != nil {
+		log.Fatal("Failed to get tables:", err)
+	}
+
+	fmt.Printf("Found tables: %v\n", tables)
+
+	for _, tableName := range tables {
+		if strings.Contains(tableName, ".sql") || strings.TrimSpace(tableName) == "" {
+			fmt.Printf("Skipping invalid table name: %s\n", tableName)
+			continue
 		}
 
-		fmt.Printf("\n💡 Suggestions:\n")
-		fmt.Printf("   1. Run from the correct directory (where dgraph_export exists)\n")
-		fmt.Printf("   2. Use 'custom' configuration to set correct paths\n")
-		fmt.Printf("   3. Ensure your export files are in the expected location\n")
-		fmt.Printf("\n📁 Current directory structure should look like:\n")
-		fmt.Printf("   your-project/\n")
-		fmt.Printf("   ├── dgraph_export/\n")
-		fmt.Printf("   │   ├── schema.dgraph\n")
-		fmt.Printf("   │   ├── batch_001.json\n")
-		fmt.Printf("   │   └── batch_002.json\n")
-		fmt.Printf("   └── importer/\n")
-		fmt.Printf("       └── main.go\n")
-		return
+		fmt.Printf("Processing table: %s\n", tableName)
+		cols, err := getColumns(db, database, tableName)
+		if err != nil {
+			fmt.Printf("Failed to get columns for table %s: %v\n", tableName, err)
+			continue
+		}
+		schema.Tables[tableName] = &Table{Name: tableName, Columns: cols}
 	}
 
-	// Check if Dgraph is running
-	if err := checkDgraphHealth(config.Host, "8080"); err != nil {
-		fmt.Printf("❌ %v\n", err)
-		fmt.Printf("\n💡 Make sure Dgraph is running. Here are the commands:\n")
-		fmt.Printf("\n🐳 Using Docker (Recommended):\n")
-		fmt.Printf("   docker-compose up -d\n")
-		fmt.Printf("\n📦 Or manually:\n")
-		fmt.Printf("   # Terminal 1:\n")
-		fmt.Printf("   dgraph zero --my=localhost:5080\n")
-		fmt.Printf("   # Terminal 2:\n")
-		fmt.Printf("   dgraph alpha --my=localhost:7080 --zero=localhost:5080\n")
-		fmt.Printf("\n🔗 Dgraph UI will be available at: http://localhost:8000\n")
-		return
-	}
-	fmt.Printf("✅ Dgraph is healthy and ready!\n")
-
-	// Connect to Dgraph
-	client, conn, err := connectDgraph(config)
+	fks, err := getForeignKeys(db, database)
 	if err != nil {
-		log.Fatalf("❌ Connection failed: %v", err)
+		log.Fatal("Failed to get foreign keys:", err)
 	}
-	defer conn.Close()
+	schema.Relationships = fks
 
-	// Load schema with enhanced validation
-	if err := loadSchemaWithValidation(client, config.Schema); err != nil {
-		log.Fatalf("❌ Schema loading failed: %v", err)
-	}
-
-	// Import all batches
-	fmt.Printf("\n🚛 Starting batch import process...\n")
-	if err := importAllBatches(client, config.DataDir); err != nil {
-		log.Fatalf("❌ Import failed: %v", err)
-	}
-
-	// Verify import
-	fmt.Printf("\n🔍 Running post-import verification...\n")
-	if expectedTypes, err := getExpectedTypes(config.Schema); err == nil && len(expectedTypes) > 0 {
-		verifyImport(client, expectedTypes)
+	// Debug: Print found relationships
+	fmt.Printf("Schema extracted: %d tables, %d relationships\n", len(schema.Tables), len(schema.Relationships))
+	if len(schema.Relationships) > 0 {
+		fmt.Println("Found relationships:")
+		for _, fk := range schema.Relationships {
+			fmt.Printf("  %s.%s -> %s.%s\n", fk.TableName, fk.ColumnName, fk.RefTableName, fk.RefColumnName)
+		}
 	} else {
-		fmt.Printf("⚠️  Could not extract types from schema for verification\n")
+		fmt.Println("No foreign key relationships detected")
+		fmt.Println("Will attempt to infer relationships from column naming patterns...")
+
+		// Show potential relationships based on naming
+		fmt.Println("Columns that might be foreign keys:")
+		for tableName, table := range schema.Tables {
+			for colName := range table.Columns {
+				colLower := strings.ToLower(colName)
+				if strings.HasSuffix(colLower, "_id") && colLower != "id" {
+					fmt.Printf("  %s.%s (might reference %s table)\n",
+						tableName, colName, strings.TrimSuffix(colLower, "_id"))
+				}
+			}
+		}
 	}
 
-	showCompletionInfo()
+	// Create output directory
+	os.MkdirAll(outputDir, 0755)
+
+	// Save schema JSON
+	schemaFile := fmt.Sprintf("%s/schema.json", outputDir)
+	f, err := os.Create(schemaFile)
+	if err != nil {
+		log.Fatal("Failed to create schema file:", err)
+	}
+	encoder := json.NewEncoder(f)
+	encoder.SetIndent("", "  ")
+	encoder.Encode(schema)
+	f.Close()
+	fmt.Printf("MySQL schema saved to %s\n", schemaFile)
+
+	// Export Dgraph schema - FIXED
+	dgraphSchemaFile := fmt.Sprintf("%s/schema.dgraph", outputDir)
+	if err := exportDgraphSchema(schema, dgraphSchemaFile); err != nil {
+		log.Fatal("Failed to export Dgraph schema:", err)
+	}
+	fmt.Printf("Dgraph schema saved to %s\n", dgraphSchemaFile)
+
+	// Export data to Dgraph JSON format
+	if err := exportToDgraphJSON(db, schema, batchSize, outputDir); err != nil {
+		log.Fatal("Failed to export data:", err)
+	}
+
+	fmt.Printf("\nExport completed successfully!\n")
+	fmt.Printf("Output directory: %s\n", outputDir)
+	fmt.Printf("Files generated:\n")
+	fmt.Printf("  - schema.json (MySQL schema)\n")
+	fmt.Printf("  - schema.dgraph (Dgraph schema)\n")
+	fmt.Printf("  - uid_mapping.json (UID mappings)\n")
+	fmt.Printf("  - batch_XXXX.json (data batches)\n")
+	fmt.Printf("\nTo import into Dgraph:\n")
+	fmt.Printf("1. Load schema: dgraph live -s schema.dgraph\n")
+	fmt.Printf("2. Import data: dgraph live -f batch_XXXX.json\n")
 }
