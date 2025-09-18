@@ -142,17 +142,22 @@ func exportDgraphSchema(schema Schema, file string) error {
 	return nil
 }
 
-// ---------------- Data Export ----------------
+// ---------------- UID Mapping ----------------
 
-// Export rows as RDF with UID references for FKs
-func exportDataRDF(db *sql.DB, schema Schema, file string) error {
-	f, err := os.Create(file)
+type UIDMap map[string]map[string]string
+
+func exportDataRDFWithUID(db *sql.DB, schema Schema, rdfFile, mapFile string) error {
+	f, err := os.Create(rdfFile)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	uidMap := make(UIDMap)
+
 	for _, t := range schema.Tables {
+		uidMap[t.Name] = make(map[string]string)
+
 		rows, err := db.Query("SELECT * FROM " + t.Name)
 		if err != nil {
 			return err
@@ -171,43 +176,67 @@ func exportDataRDF(db *sql.DB, schema Schema, file string) error {
 			if err != nil {
 				return err
 			}
-			uidCounter++
-			uid := fmt.Sprintf("_:%s_%d", t.Name, uidCounter)
+
+			var pk string
+			for i, col := range cols {
+				if strings.ToLower(col) == "id" || strings.HasSuffix(strings.ToLower(col), "_id") {
+					pk = string(values[i])
+					break
+				}
+			}
+
+			if pk == "" {
+				uidCounter++
+				pk = fmt.Sprintf("%d", uidCounter)
+			}
+
+			uid := fmt.Sprintf("_:%s_%s", t.Name, pk)
+			uidMap[t.Name][pk] = uid
 
 			for i, col := range cols {
 				val := string(values[i])
-				if val != "" {
-					predicate := fmt.Sprintf("<%s.%s>", t.Name, col)
+				if val == "" {
+					continue
+				}
 
-					// Check if this column is a foreign key
-					isFK := false
-					var refTable string
-					for _, fk := range schema.Relationships {
-						if fk.TableName == t.Name && fk.ColumnName == col {
-							isFK = true
-							refTable = fk.RefTableName
-							break
-						}
-					}
+				predicate := fmt.Sprintf("<%s.%s>", t.Name, col)
+				isFK := false
+				var refTable string
 
-					if isFK {
-						// Write UID reference
-						refUID := fmt.Sprintf("_:%s_%s", refTable, val)
-						fmt.Fprintf(f, "%s %s %s .\n", uid, predicate, refUID)
-					} else {
-						// Normal scalar value
-						fmt.Fprintf(f, "%s %s \"%s\" .\n", uid, predicate, strings.ReplaceAll(val, "\"", "'"))
+				for _, fk := range schema.Relationships {
+					if fk.TableName == t.Name && fk.ColumnName == col {
+						isFK = true
+						refTable = fk.RefTableName
+						break
 					}
+				}
+
+				if isFK {
+					refUID := fmt.Sprintf("_:%s_%s", refTable, val)
+					fmt.Fprintf(f, "%s %s %s .\n", uid, predicate, refUID)
+				} else {
+					fmt.Fprintf(f, "%s %s \"%s\" .\n", uid, predicate, strings.ReplaceAll(val, "\"", "'"))
 				}
 			}
 			fmt.Fprintf(f, "%s <dgraph.type> \"%s\" .\n\n", uid, t.Name)
 		}
 		rows.Close()
 	}
+
+	mf, err := os.Create(mapFile)
+	if err != nil {
+		return err
+	}
+	defer mf.Close()
+	encoder := json.NewEncoder(mf)
+	encoder.SetIndent("", "  ")
+	encoder.Encode(uidMap)
+
 	return nil
 }
 
-// Export advanced Dgraph schema with edges
+// ---------------- Advanced Dgraph Schema ----------------
+
 func exportDgraphAdvancedSchema(schema Schema, file string) error {
 	f, err := os.Create(file)
 	if err != nil {
@@ -215,33 +244,27 @@ func exportDgraphAdvancedSchema(schema Schema, file string) error {
 	}
 	defer f.Close()
 
-	// Build reverse map
 	reverseMap := make(map[string][]ForeignKey)
 	for _, fk := range schema.Relationships {
 		reverseMap[fk.RefTableName] = append(reverseMap[fk.RefTableName], fk)
 	}
 
-	// --- Types Section ---
 	for _, t := range schema.Tables {
 		fmt.Fprintf(f, "# -------------------\n")
 		fmt.Fprintf(f, "# %s\n", t.Name)
 		fmt.Fprintf(f, "# -------------------\n")
 		fmt.Fprintf(f, "type %s {\n", t.Name)
 
-		// Scalars
 		for col, typ := range t.Columns {
-			dType := mysqlToDgraphType(typ)
-			fmt.Fprintf(f, "  %s.%s: %s\n", t.Name, col, dType)
+			fmt.Fprintf(f, "  %s.%s: %s\n", t.Name, col, mysqlToDgraphType(typ))
 		}
 
-		// Outgoing FKs (many-to-one)
 		for _, fk := range schema.Relationships {
 			if fk.TableName == t.Name {
 				fmt.Fprintf(f, "  %s.%s: %s\n", t.Name, fk.ColumnName, fk.RefTableName)
 			}
 		}
 
-		// Incoming FKs (one-to-many)
 		if fks, ok := reverseMap[t.Name]; ok {
 			for _, fk := range fks {
 				fmt.Fprintf(f, "  %s.%s: [%s]\n", fk.RefTableName, pluralize(fk.TableName), fk.TableName)
@@ -251,18 +274,12 @@ func exportDgraphAdvancedSchema(schema Schema, file string) error {
 		fmt.Fprintln(f, "}\n")
 	}
 
-	// --- Predicates Section ---
-	fmt.Fprintf(f, "# ===================\n")
-	fmt.Fprintf(f, "# Predicates\n")
-	fmt.Fprintf(f, "# ===================\n")
-
-	// Scalars
+	fmt.Fprintf(f, "# ===================\n# Predicates\n# ===================\n")
 	for _, t := range schema.Tables {
 		for col, typ := range t.Columns {
 			dType := mysqlToDgraphType(typ)
 			predicate := fmt.Sprintf("%s.%s", t.Name, col)
 
-			// Choose index defaults
 			var index string
 			switch dType {
 			case "string":
@@ -285,20 +302,14 @@ func exportDgraphAdvancedSchema(schema Schema, file string) error {
 		}
 	}
 
-	// Outgoing FK → uid
 	for _, fk := range schema.Relationships {
 		fmt.Fprintf(f, "%s.%s: uid @reverse .\n", fk.TableName, fk.ColumnName)
-	}
-
-	// Incoming FK → [uid]
-	for _, fk := range schema.Relationships {
 		fmt.Fprintf(f, "%s.%s: [uid] @reverse .\n", fk.RefTableName, pluralize(fk.TableName))
 	}
 
 	return nil
 }
 
-// Very simple pluralizer
 func pluralize(name string) string {
 	if strings.HasSuffix(name, "s") {
 		return name
@@ -306,7 +317,76 @@ func pluralize(name string) string {
 	return name + "s"
 }
 
-// Export rows as JSON
+// ---------------- Batched JSON Export for Dgraph ----------------
+
+func exportDataDgraphJSON(db *sql.DB, schema Schema) error {
+	const batchSize = 100000
+	var batch []map[string]interface{}
+	batchCount := 1
+
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		wrapped := map[string]interface{}{"set": batch}
+		file := fmt.Sprintf("data_dgraph_%d.json", batchCount)
+		f, err := os.Create(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		enc := json.NewEncoder(f)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(wrapped); err != nil {
+			return err
+		}
+		fmt.Printf("✅ Exported %s with %d mutations\n", file, len(batch))
+		batchCount++
+		batch = nil
+		return nil
+	}
+
+	for _, t := range schema.Tables {
+		rows, err := db.Query("SELECT * FROM " + t.Name)
+		if err != nil {
+			return err
+		}
+		cols, _ := rows.Columns()
+		values := make([]sql.RawBytes, len(cols))
+		scanArgs := make([]interface{}, len(cols))
+		for i := range values {
+			scanArgs[i] = &values[i]
+		}
+
+		for rows.Next() {
+			err = rows.Scan(scanArgs...)
+			if err != nil {
+				return err
+			}
+			obj := map[string]interface{}{}
+			obj["dgraph.type"] = t.Name
+			for i, col := range cols {
+				val := string(values[i])
+				if val != "" {
+					obj[fmt.Sprintf("%s.%s", t.Name, col)] = val
+				}
+			}
+			batch = append(batch, obj)
+
+			if len(batch) >= batchSize {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
+		}
+		rows.Close()
+	}
+
+	return flush()
+}
+
+// ---------------- Export JSON (legacy) ----------------
+
 func exportDataJSON(db *sql.DB, schema Schema, file string) error {
 	data := make(map[string][]map[string]string)
 
@@ -356,7 +436,7 @@ func main() {
 	password := "root"
 	host := "127.0.0.1"
 	port := "3306"
-	database := "dump" // CHANGE THIS
+	database := "dump"
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, host, port, database)
 	db, err := sql.Open("mysql", dsn)
@@ -391,15 +471,19 @@ func main() {
 	exportDgraphSchema(schema, "schema.graphql")
 	fmt.Println("✅ Dgraph schema exported to schema.graphql")
 
-	// Save RDF data with UID references
-	exportDataRDF(db, schema, "data.rdf")
-	fmt.Println("✅ Data exported to data.rdf")
+	// Save RDF data
+	exportDataRDFWithUID(db, schema, "data.rdf", "uid_map.json")
+	fmt.Println("✅ Data exported to data.rdf with UID mapping uid_map.json")
 
-	// Save JSON data
+	// Save JSON
 	exportDataJSON(db, schema, "data.json")
 	fmt.Println("✅ Data exported to data.json")
 
-	// Save advanced Dgraph schema
+	// Save advanced schema
 	exportDgraphAdvancedSchema(schema, "schema.txt")
 	fmt.Println("✅ Advanced Dgraph schema exported to schema.txt")
+
+	// Save batched Dgraph JSON
+	exportDataDgraphJSON(db, schema)
+	fmt.Println("✅ Batched Dgraph JSON exported (data_dgraph_*.json)")
 }
