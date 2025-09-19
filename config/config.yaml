@@ -1,0 +1,52 @@
+# MySQL to Dgraph Pipeline Configuration
+# =====================================
+
+# MySQL Database Configuration
+mysql:
+  host: "localhost"
+  port: 3306
+  user: "root"
+  password: "root"
+  database: "dump"
+  max_connections: 10
+  conn_max_lifetime: "5m"
+  conn_max_idle_time: "2m"
+  timeout: "30s"
+
+# Dgraph Configuration
+dgraph:
+  alpha:
+    - "localhost:9080"
+  timeout: "30s"
+  batch_size: 10000
+  max_retries: 3
+  retry_delay: "1s"
+  compression: true
+
+# Pipeline Configuration
+pipeline:
+  workers: 4                    # Number of parallel workers
+  batch_size: 1000             # Rows per batch
+  memory_limit_mb: 1024        # Memory limit in MB
+  dry_run: false               # Set to true for testing
+  skip_validation: false       # Skip data validation
+  checkpoint_interval: 10000   # Save progress every N rows
+  progress_report_interval: "30s"
+  enable_metrics: true
+  metrics_port: 8080
+
+# Logging Configuration
+logger:
+  level: "info"               # debug, info, warn, error
+  format: "json"              # json, text
+  output: "stdout"            # stdout, file path
+
+# Output Configuration
+output:
+  directory: "output"
+  rdf_file: "data.rdf"
+  schema_file: "schema.txt"
+  json_file: "data.json"
+  mapping_file: "uid_mapping.txt"
+  checkpoint_file: "checkpoint.json"
+  backup_enabled: true

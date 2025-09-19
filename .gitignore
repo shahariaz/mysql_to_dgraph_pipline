@@ -32,3 +32,19 @@ go.work.sum
 # .vscode/
 
 dgraph_export
+
+# Output files (generated data) - exclude large RDF files
+output/*.rdf
+output/large_scale_*.txt
+output/data.txt
+
+# Build artifacts
+pipeline
+pipeline.exe
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+*.temp
+temp/

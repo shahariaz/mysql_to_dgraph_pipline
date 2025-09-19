@@ -1,0 +1,49 @@
+# Production Configuration for Large Datasets
+# ==========================================
+
+mysql:
+  host: "${MYSQL_HOST}"
+  port: ${MYSQL_PORT}
+  user: "${MYSQL_USER}"
+  password: "${MYSQL_PASSWORD}"
+  database: "${MYSQL_DATABASE}"
+  max_connections: 20
+  conn_max_lifetime: "10m"
+  conn_max_idle_time: "5m"
+  timeout: "60s"
+
+dgraph:
+  alpha:
+    - "${DGRAPH_ALPHA_1}"
+    - "${DGRAPH_ALPHA_2}"
+    - "${DGRAPH_ALPHA_3}"
+  timeout: "60s"
+  batch_size: 50000
+  max_retries: 5
+  retry_delay: "2s"
+  compression: true
+
+pipeline:
+  workers: 8
+  batch_size: 5000
+  memory_limit_mb: 4096
+  dry_run: false
+  skip_validation: false
+  checkpoint_interval: 50000
+  progress_report_interval: "1m"
+  enable_metrics: true
+  metrics_port: 8080
+
+logger:
+  level: "info"
+  format: "json"
+  output: "/var/log/mysql-dgraph-pipeline.log"
+
+output:
+  directory: "/data/output"
+  rdf_file: "production_data.rdf"
+  schema_file: "production_schema.txt"
+  json_file: "production_data.json"
+  mapping_file: "production_uid_mapping.txt"
+  checkpoint_file: "production_checkpoint.json"
+  backup_enabled: true

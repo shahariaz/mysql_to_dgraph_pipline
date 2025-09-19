@@ -1,19 +1,29 @@
 version: "3.8"
+
 services:
+  # Dgraph Zero
   zero:
     image: dgraph/dgraph:latest
     volumes:
       - dgraph_data:/dgraph
+      - ./output:/output  # Mount output directory for easy access
     ports:
       - 5080:5080
       - 6080:6080
     restart: on-failure
     command: dgraph zero --my=zero:5080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Dgraph Alpha
   alpha:
     image: dgraph/dgraph:latest
     volumes:
       - dgraph_data:/dgraph
+      - ./output:/output  # Mount output directory for easy access
     ports:
       - 8080:8080
       - 9080:9080
@@ -24,13 +34,65 @@ services:
       --zero=zero:5080
       --security whitelist=0.0.0.0/0
     depends_on:
-      - zero
-
+      zero:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  # Dgraph Ratel (UI)
   ratel:
     image: dgraph/ratel:latest
     ports:
       - 8000:8000
     command: dgraph-ratel
+    depends_on:
+      - alpha
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:                                            
+      - "9090:9090" 
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
 
 volumes:
   dgraph_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

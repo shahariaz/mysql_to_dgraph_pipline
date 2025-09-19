@@ -1,0 +1,53 @@
+# MySQL to Dgraph Pipeline Configuration - Large Scale Test
+# ========================================================
+
+# MySQL Database Configuration  
+mysql:
+  host: "localhost"
+  port: 3306
+  user: "root"
+  password: "root"
+  database: "dump"
+  max_connections: 20
+  conn_max_lifetime: "10m"
+  conn_max_idle_time: "5m"
+  timeout: "60s"
+
+# Dgraph Configuration
+dgraph:
+  alpha:
+    - "localhost:9080"
+    - "localhost:8080"
+  timeout: "60s"
+  batch_size: 50000
+  max_retries: 5
+  retry_delay: "2s"
+  compression: true
+
+# Pipeline Configuration - Optimized for Large Scale
+pipeline:
+  workers: 8
+  batch_size: 5000
+  memory_limit_mb: 10
+  dry_run: false
+  skip_validation: false
+  checkpoint_interval: 50000
+  progress_report_interval: "1m"
+  enable_metrics: true
+  metrics_port: 8080
+
+# Logging Configuration
+logger:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+# Output Configuration
+output:
+  directory: "output"
+  rdf_file: "large_scale_data.rdf"
+  schema_file: "large_scale_schema.txt"
+  json_file: "large_scale_data.json"
+  mapping_file: "large_scale_uid_mapping.txt"
+  checkpoint_file: "large_scale_checkpoint.json"
+  backup_enabled: true
