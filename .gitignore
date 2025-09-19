@@ -33,10 +33,9 @@ go.work.sum
 
 dgraph_export
 
-# Output files (generated data) - exclude large RDF files
-output/*.rdf
-output/large_scale_*.txt
-output/data.txt
+# Output files (generated data) - exclude ALL output files
+output/*
+!output/.gitkeep
 
 # Build artifacts
 pipeline

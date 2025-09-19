@@ -1,0 +1,9 @@
+# Output Directory
+
+This directory contains generated files from the MySQL to Dgraph pipeline:
+
+- data.rdf - RDF data file for Dgraph import
+- schema.txt - Dgraph schema with type definitions  
+- uid_mapping.txt - UID mapping for reference
+
+These files are generated during pipeline execution and should not be committed to version control.
