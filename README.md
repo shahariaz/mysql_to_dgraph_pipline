@@ -1,17 +1,31 @@
-# MySQL to Dgraph Production Pipeline
+# MySQL to Dgraph Universal Pipeline
 
-A high-performance, production-ready pipeline for migrating data from MySQL to Dgraph with support for 1+ billion rows.
+A high-performance, production-ready pipeline for migrating data from **ANY MySQL database** to Dgraph with support for 1+ billion rows. **No configuration required** - automatically detects relationships and converts any schema.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Scalable Architecture**: Handles 1+ billion rows with parallel processing
-- **Intelligent Schema Generation**: Automatic Dgraph schema generation with proper relationships
-- **Foreign Key Support**: Complete FK relationship mapping with @reverse predicates
-- **Memory Efficient**: Batched processing with configurable memory limits
-- **Production Ready**: Comprehensive logging, monitoring, and error handling
-- **Data Validation**: Built-in integrity checks and validation
-- **Flexible Configuration**: YAML-based configuration with environment variable support
-- **Docker Support**: Complete containerized deployment
+- **🌐 Universal Compatibility**: Works with ANY MySQL database structure
+- **🔗 Smart Relationship Detection**: Automatically detects foreign keys using multiple strategies
+- **📈 Scalable Architecture**: Handles 1+ billion rows with parallel processing
+- **🧠 Intelligent Schema Generation**: Automatic Dgraph schema generation with proper relationships
+- **🔄 Zero Configuration**: No hardcoded table names or relationships needed
+- **⚡ Memory Efficient**: Batched processing with configurable memory limits
+- **🏭 Production Ready**: Comprehensive logging, monitoring, and error handling
+- **✅ Data Validation**: Built-in integrity checks and validation
+- **🎛️ Flexible Configuration**: YAML-based configuration with environment variable support
+- **🐳 Docker Support**: Complete containerized deployment
+
+## 🎯 Universal Database Support
+
+This tool automatically works with common database patterns:
+
+| Database Type | Example Tables | Auto-Detected Relationships |
+|---------------|----------------|----------------------------|
+| **E-commerce** | `users`, `products`, `orders`, `order_items` | `orders.user_id → users`, `order_items.product_id → products` |
+| **Blog/CMS** | `users`, `posts`, `comments`, `categories` | `posts.user_id → users`, `comments.post_id → posts` |
+| **Social Media** | `users`, `posts`, `likes`, `follows` | `posts.user_id → users`, `likes.post_id → posts` |
+| **Financial** | `accounts`, `transactions`, `users` | `transactions.account_id → accounts` |
+| **Any Custom Schema** | Your tables | Automatic detection based on naming conventions |
 
 ## 📋 Table of Contents
 
@@ -52,42 +66,88 @@ A high-performance, production-ready pipeline for migrating data from MySQL to D
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Step 1: Configure Your Database
 
-- Go 1.21 or higher
-- MySQL 8.0+
-- Dgraph (optional, for direct import)
-- Docker & Docker Compose (optional)
+Create a config file for your MySQL database:
 
-### Installation
+```yaml
+# config/my_database.yaml
+mysql:
+  host: "localhost"
+  port: 3306
+  user: "your_username"
+  password: "your_password"
+  database: "your_database_name"
+```
 
-1. Clone the repository:
+### Step 2: Run the Pipeline
+
 ```bash
+# Clone and build
 git clone https://github.com/shahariaz/mysql_to_dgraph_pipeline.git
 cd mysql_to_dgraph_pipeline
-```
-
-2. Install dependencies:
-```bash
-go mod tidy
-```
-
-3. Build the application:
-```bash
 go build -o pipeline cmd/main.go
+
+# Convert your database
+./pipeline -config=config/my_database.yaml
+
+# That's it! Your data is now in output/data.rdf with schema in output/schema.txt
 ```
 
-### Using Docker Compose
+### Step 3: Import to Dgraph
 
-1. Start the infrastructure:
 ```bash
+# Start Dgraph
 docker-compose up -d
+
+# Import your data
+dgraph live -f output/data.rdf -s output/schema.txt --alpha localhost:9080 --zero localhost:5080
 ```
 
-2. Run the pipeline:
-```bash
-./pipeline -config config/config.yaml -mode full
-```
+### Real Examples
+
+<details>
+<summary>📊 E-commerce Database</summary>
+
+**Tables**: `users`, `products`, `orders`, `order_items`, `categories`
+
+**Auto-detected relationships**:
+- `orders.user_id → users.id`
+- `order_items.order_id → orders.id`  
+- `order_items.product_id → products.id`
+- `products.category_id → categories.id`
+
+**Result**: Complete e-commerce graph with customers, products, and order relationships
+</details>
+
+<details>
+<summary>📝 Blog/CMS Database</summary>
+
+**Tables**: `users`, `posts`, `comments`, `categories`, `tags`, `post_tags`
+
+**Auto-detected relationships**:
+- `posts.user_id → users.id`
+- `comments.post_id → posts.id`
+- `post_tags.post_id → posts.id`
+- `post_tags.tag_id → tags.id`
+
+**Result**: Complete content graph with authors, posts, comments, and tags
+</details>
+
+<details>
+<summary>🏢 Custom App with Prefixes</summary>
+
+**Tables**: `app_users`, `app_posts`, `app_comments`, `app_settings`
+
+**Auto-detected**:
+- Detects `app_` as common prefix
+- Maps `app_posts.user_id → app_users.id`
+- Maps `app_comments.post_id → app_posts.id`
+
+**Result**: Handles any naming convention automatically
+</details>
+
+> 💡 **See [GENERIC_USAGE.md](GENERIC_USAGE.md) for comprehensive examples and advanced usage**
 
 ## ⚙️ Configuration
 

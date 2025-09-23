@@ -369,27 +369,70 @@ func (dp *DataProcessor) generateRowUID(tableName string, cols []string, values 
 }
 
 func (dp *DataProcessor) isForeignKey(tableName, columnName string, schema *Schema) (bool, string) {
-	// Check explicit foreign key relationships
+	// Check explicit foreign key relationships first (most reliable)
+	var foundRelationships []string
 	for _, fk := range schema.Relationships {
 		if fk.TableName == tableName && fk.ColumnName == columnName {
-			return true, fk.RefTableName
+			foundRelationships = append(foundRelationships, fk.RefTableName)
 		}
 	}
+	
+	// If we found multiple relationships for the same column, log them for debugging
+	if len(foundRelationships) > 1 {
+		dp.logger.Warn("Multiple relationships found for column",
+			"table", tableName,
+			"column", columnName,
+			"targets", foundRelationships)
+	}
+	
+	// Return the first (most prioritized) relationship
+	if len(foundRelationships) > 0 {
+		dp.logger.Debug("Using relationship",
+			"table", tableName,
+			"column", columnName,
+			"target", foundRelationships[0])
+		return true, foundRelationships[0]
+	}
 
-	// Check naming conventions
+	// Check naming conventions using the same logic as schema detection
 	if IsForeignKey(columnName) {
-		// Extract potential table name from column name
-		refTableName := strings.TrimSuffix(strings.ToLower(columnName), "_id")
-
-		// Check if referenced table exists
-		if _, exists := schema.Tables[refTableName]; exists {
-			return true, refTableName
+		// Extract base name based on different FK naming patterns
+		var baseName string
+		columnLower := strings.ToLower(columnName)
+		
+		switch {
+		case strings.HasSuffix(columnLower, "_id"):
+			baseName = strings.TrimSuffix(columnLower, "_id")
+		case strings.HasSuffix(columnLower, "_key"):
+			baseName = strings.TrimSuffix(columnLower, "_key")
+		case strings.HasSuffix(columnLower, "_ref"):
+			baseName = strings.TrimSuffix(columnLower, "_ref")
+		case strings.HasPrefix(columnLower, "id_"):
+			baseName = strings.TrimPrefix(columnLower, "id_")
+		case strings.HasPrefix(columnLower, "fk_"):
+			baseName = strings.TrimPrefix(columnLower, "fk_")
+		default:
+			baseName = columnLower
 		}
 
-		// Try plural form
-		pluralTableName := refTableName + "s"
-		if _, exists := schema.Tables[pluralTableName]; exists {
-			return true, pluralTableName
+		// Try multiple table name patterns
+		candidates := []string{
+			baseName,           // Direct match
+			baseName + "s",     // Plural
+			baseName + "es",    // Plural with 'es'
+			baseName + "ies",   // Plural with 'ies'
+		}
+
+		// Handle self-referential foreign keys
+		if baseName == "parent" || baseName == "original" || columnName == tableName+"_id" {
+			candidates = append(candidates, tableName)
+		}
+
+		// Try to find existing table that matches any candidate
+		for _, candidate := range candidates {
+			if _, exists := schema.Tables[candidate]; exists {
+				return true, candidate
+			}
 		}
 	}
 

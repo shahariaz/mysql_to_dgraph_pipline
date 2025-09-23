@@ -6,7 +6,7 @@ mysql:
   host: "localhost"
   port: 3306
   user: "root"
-  password: "root"
+  password: "rootpass"
   database: "dump"
   max_connections: 10
   conn_max_lifetime: "5m"
@@ -37,7 +37,7 @@ pipeline:
 
 # Logging Configuration
 logger:
-  level: "info"               # debug, info, warn, error
+  level: "debug"               # debug, info, warn, error
   format: "json"              # json, text
   output: "stdout"            # stdout, file path
 

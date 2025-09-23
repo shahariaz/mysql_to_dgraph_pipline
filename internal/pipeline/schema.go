@@ -109,6 +109,82 @@ func (se *SchemaExtractor) ExtractSchema(ctx context.Context, database string) (
 		schema.Relationships = append(schema.Relationships, conventionFKs...)
 	}
 
+	// Use data analyzer to discover relationships from actual data
+	analyzer := NewDataAnalyzer(se.db, se.logger)
+	candidates, err := analyzer.AnalyzeDataRelationships(ctx, schema)
+	if err != nil {
+		se.logger.Debug("Failed to analyze data relationships", "error", err)
+	} else {
+		dataFKs := []ForeignKey{}
+		
+		// Create a map to track existing relationships to avoid duplicates
+		existingRelationships := make(map[string]string) // key: table.column, value: refTable
+		for _, fk := range schema.Relationships {
+			key := fmt.Sprintf("%s.%s", fk.TableName, fk.ColumnName)
+			existingRelationships[key] = fk.RefTableName
+		}
+		
+		for _, candidate := range candidates {
+			// Apply high-confidence relationships (>50% match rate)
+			if candidate.Confidence > 0.5 {
+				key := fmt.Sprintf("%s.%s", candidate.FromTable, candidate.FromColumn)
+				
+				// Check if we already have a relationship for this column
+				if existingRefTable, exists := existingRelationships[key]; exists {
+					se.logger.Info("Data-driven relationship conflicts with existing relationship",
+						"table.column", key,
+						"existing_target", existingRefTable,
+						"data_target", candidate.ToTable,
+						"confidence", fmt.Sprintf("%.2f", candidate.Confidence))
+					
+					// Data-driven relationships with high confidence should override convention-based ones
+					if candidate.Confidence > 0.8 {
+						se.logger.Info("Overriding existing relationship with high-confidence data-driven relationship",
+							"table.column", key,
+							"old_target", existingRefTable,
+							"new_target", candidate.ToTable)
+						
+						// Remove the existing relationship
+						var filteredRelationships []ForeignKey
+						for _, fk := range schema.Relationships {
+							if !(fk.TableName == candidate.FromTable && fk.ColumnName == candidate.FromColumn) {
+								filteredRelationships = append(filteredRelationships, fk)
+							}
+						}
+						schema.Relationships = filteredRelationships
+						existingRelationships[key] = candidate.ToTable
+					} else {
+						se.logger.Info("Keeping existing relationship (data-driven confidence too low)",
+							"table.column", key,
+							"keeping_target", existingRefTable)
+						continue
+					}
+				} else {
+					existingRelationships[key] = candidate.ToTable
+				}
+				
+				fk := ForeignKey{
+					ConstraintName: fmt.Sprintf("data_fk_%s_%s", candidate.FromTable, candidate.FromColumn),
+					TableName:      candidate.FromTable,
+					ColumnName:     candidate.FromColumn,
+					RefTableName:   candidate.ToTable,
+					RefColumnName:  candidate.ToColumn,
+					UpdateRule:     "CASCADE",
+					DeleteRule:     "RESTRICT",
+				}
+				dataFKs = append(dataFKs, fk)
+				se.logger.Info("Applied data-driven relationship",
+					"from", fmt.Sprintf("%s.%s", candidate.FromTable, candidate.FromColumn),
+					"to", fmt.Sprintf("%s.%s", candidate.ToTable, candidate.ToColumn),
+					"confidence", fmt.Sprintf("%.2f", candidate.Confidence))
+			}
+		}
+		if len(dataFKs) > 0 {
+			se.logger.Info("Found additional foreign keys from data analysis", "count", len(dataFKs))
+			schema.Relationships = append(schema.Relationships, dataFKs...)
+		}
+	}
+
 	// Get indexes
 	indexes, err := se.getIndexes(ctx, database)
 	if err != nil {
@@ -145,6 +221,14 @@ func (se *SchemaExtractor) getTables(ctx context.Context, database string) ([]st
 		if err := rows.Scan(&table); err != nil {
 			return nil, err
 		}
+		
+		// Skip tables with obviously problematic names (temp files, backups, etc.)
+		// But allow legitimate table names that might contain dots
+		if strings.HasPrefix(table, ".") || strings.HasSuffix(table, ".tmp") || strings.HasSuffix(table, ".bak") {
+			se.logger.Warn("Skipping table with problematic name", "table", table)
+			continue
+		}
+		
 		tables = append(tables, table)
 	}
 	return tables, rows.Err()
@@ -394,7 +478,24 @@ func MySQLToDgraphType(mysqlType string) string {
 // IsForeignKey checks if a column is likely a foreign key based on naming conventions
 func IsForeignKey(columnName string) bool {
 	columnName = strings.ToLower(columnName)
-	return strings.HasSuffix(columnName, "_id") && columnName != "id"
+	
+	// Common foreign key naming patterns:
+	// 1. *_id (most common): user_id, customer_id, etc.
+	// 2. *_key: user_key, customer_key, etc.
+	// 3. *_ref: user_ref, customer_ref, etc.
+	// 4. id_* (less common): id_user, id_customer, etc.
+	// 5. fk_*: fk_user, fk_customer, etc.
+	
+	// Exclude primary key columns
+	if columnName == "id" {
+		return false
+	}
+	
+	return strings.HasSuffix(columnName, "_id") ||
+		   strings.HasSuffix(columnName, "_key") ||
+		   strings.HasSuffix(columnName, "_ref") ||
+		   strings.HasPrefix(columnName, "id_") ||
+		   strings.HasPrefix(columnName, "fk_")
 }
 
 // DetectForeignKeysByConvention detects foreign keys based on naming conventions and table existence
@@ -412,58 +513,85 @@ func (se *SchemaExtractor) DetectForeignKeysByConvention(ctx context.Context, sc
 		for columnName := range table.Columns {
 			if IsForeignKey(columnName) {
 				se.logger.Debug("Found potential FK column", "table", tableName, "column", columnName)
-				// Try to infer the referenced table name
-				baseName := strings.TrimSuffix(strings.ToLower(columnName), "_id")
-
+				
+				// Try to infer the referenced table name using generic conventions
+				var baseName string
+				
+				// Extract base name based on different FK naming patterns
+				columnLower := strings.ToLower(columnName)
+				switch {
+				case strings.HasSuffix(columnLower, "_id"):
+					baseName = strings.TrimSuffix(columnLower, "_id")
+				case strings.HasSuffix(columnLower, "_key"):
+					baseName = strings.TrimSuffix(columnLower, "_key")
+				case strings.HasSuffix(columnLower, "_ref"):
+					baseName = strings.TrimSuffix(columnLower, "_ref")
+				case strings.HasPrefix(columnLower, "id_"):
+					baseName = strings.TrimPrefix(columnLower, "id_")
+				case strings.HasPrefix(columnLower, "fk_"):
+					baseName = strings.TrimPrefix(columnLower, "fk_")
+				default:
+					baseName = columnLower
+				}
 				var referencedTable string
 				var referencedColumn = "id" // Default assumption
 
-				// Try different table name patterns based on actual data patterns
+				// Generic foreign key detection strategies:
+				// 1. Direct table name match (user_id -> users, customer_id -> customers)
+				// 2. Singular to plural conversion (category_id -> categories)
+				// 3. Handle compound table names with common prefixes/suffixes
+				// 4. Handle self-referential foreign keys (parent_id in same table)
+				// 5. Try with/without common prefixes found in database
+				
 				candidates := []string{
-					// Direct patterns from actual database
-					"chorki_" + baseName,        // meta_id -> chorki_metas (but we need chorki_metas)
-					"chorki_" + baseName + "s",  // meta_id -> chorki_metas, series_id -> chorki_series
-					"chorki_" + baseName + "es", // video_id -> chorki_videos (special case)
-
-					// Handle special cases observed in the data
-					func() string {
-						switch baseName {
-						case "meta":
-							return "chorki_metas"
-						case "series":
-							return "chorki_series"
-						case "season":
-							return "chorki_seasons"
-						case "customer":
-							return "chorki_customers"
-						case "video":
-							return "chorki_videos"
-						case "stream":
-							return "chorki_streams"
-						case "content":
-							return "chorki_metas" // content_id likely references metas
-						case "profile":
-							return "chorki_customers" // profile_id likely references customers
-						case "parent":
-							return tableName // parent_id is self-referential
-						case "original":
-							return tableName // original_id is self-referential
-						case "seo_meta":
-							return "chorki_metas" // seo_meta_id references chorki_metas
-						case "ad_campaign":
-							return "chorki_metas" // ad_campaign_id references chorki_metas (or could be self-ref)
-						default:
-							return ""
-						}
-					}(),
-
-					// Generic patterns as fallback
-					baseName + "s", // user_id -> users
-					baseName,       // seo_meta -> seo_meta
+					baseName,           // Direct match: user_id -> user
+					baseName + "s",     // Plural: user_id -> users
+					baseName + "es",    // Plural with 'es': category_id -> categories
+					baseName + "ies",   // Plural with 'ies': company_id -> companies
 				}
 
+				// Handle self-referential foreign keys
+				if baseName == "parent" || baseName == "original" || columnName == tableName+"_id" {
+					candidates = append(candidates, tableName)
+				}
+
+				// Detect common prefixes in the database to handle prefixed table names
+				commonPrefixes := se.detectCommonTablePrefixes(existingTables)
+				for _, prefix := range commonPrefixes {
+					candidates = append(candidates,
+						prefix+baseName,
+						prefix+baseName+"s",
+						prefix+baseName+"es",
+					)
+				}
+
+				// For compound table names, try removing common suffixes and adding back
+				if strings.Contains(baseName, "_") {
+					parts := strings.Split(baseName, "_")
+					if len(parts) > 1 {
+						// Try different combinations for compound names
+						lastPart := parts[len(parts)-1]
+						withoutLast := strings.Join(parts[:len(parts)-1], "_")
+						
+						candidates = append(candidates,
+							withoutLast+"_"+lastPart+"s",     // user_profile_id -> user_profiles
+							withoutLast+"_"+lastPart+"es",    // user_profile_id -> user_profilees (rare but possible)
+							strings.Join(parts, "_")+"s",     // full name + s
+						)
+						
+						// Also try with detected prefixes
+						for _, prefix := range commonPrefixes {
+							candidates = append(candidates,
+								prefix+withoutLast+"_"+lastPart+"s",
+								prefix+strings.Join(parts, "_")+"s",
+							)
+						}
+					}
+				}
+
+				// Try to find existing table that matches any candidate
 				for _, candidate := range candidates {
-					if candidate != "" && existingTables[candidate] {
+					if existingTables[candidate] {
 						referencedTable = candidate
 						break
 					}
@@ -490,11 +618,39 @@ func (se *SchemaExtractor) DetectForeignKeysByConvention(ctx context.Context, sc
 					se.logger.Debug("Could not find referenced table for potential FK",
 						"table", tableName,
 						"column", columnName,
-						"base_name", baseName)
+						"tried_candidates", candidates)
 				}
 			}
 		}
 	}
 
 	return conventionFKs
+}
+
+// detectCommonTablePrefixes analyzes table names to find common prefixes
+// This helps detect foreign keys in databases with prefixed table names (e.g., "app_users", "app_posts")
+func (se *SchemaExtractor) detectCommonTablePrefixes(existingTables map[string]bool) []string {
+	prefixCount := make(map[string]int)
+	
+	// Extract potential prefixes from table names
+	for tableName := range existingTables {
+		if strings.Contains(tableName, "_") {
+			parts := strings.Split(tableName, "_")
+			if len(parts) >= 2 {
+				// Consider first part as potential prefix
+				prefix := parts[0] + "_"
+				prefixCount[prefix]++
+			}
+		}
+	}
+	
+	// Only consider prefixes that appear in multiple tables (at least 2)
+	var commonPrefixes []string
+	for prefix, count := range prefixCount {
+		if count >= 2 {
+			commonPrefixes = append(commonPrefixes, prefix)
+		}
+	}
+	
+	return commonPrefixes
 }
