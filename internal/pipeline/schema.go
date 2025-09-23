@@ -116,19 +116,19 @@ func (se *SchemaExtractor) ExtractSchema(ctx context.Context, database string) (
 		se.logger.Debug("Failed to analyze data relationships", "error", err)
 	} else {
 		dataFKs := []ForeignKey{}
-		
+
 		// Create a map to track existing relationships to avoid duplicates
 		existingRelationships := make(map[string]string) // key: table.column, value: refTable
 		for _, fk := range schema.Relationships {
 			key := fmt.Sprintf("%s.%s", fk.TableName, fk.ColumnName)
 			existingRelationships[key] = fk.RefTableName
 		}
-		
+
 		for _, candidate := range candidates {
 			// Apply high-confidence relationships (>50% match rate)
 			if candidate.Confidence > 0.5 {
 				key := fmt.Sprintf("%s.%s", candidate.FromTable, candidate.FromColumn)
-				
+
 				// Check if we already have a relationship for this column
 				if existingRefTable, exists := existingRelationships[key]; exists {
 					se.logger.Info("Data-driven relationship conflicts with existing relationship",
@@ -136,14 +136,14 @@ func (se *SchemaExtractor) ExtractSchema(ctx context.Context, database string) (
 						"existing_target", existingRefTable,
 						"data_target", candidate.ToTable,
 						"confidence", fmt.Sprintf("%.2f", candidate.Confidence))
-					
+
 					// Data-driven relationships with high confidence should override convention-based ones
 					if candidate.Confidence > 0.8 {
 						se.logger.Info("Overriding existing relationship with high-confidence data-driven relationship",
 							"table.column", key,
 							"old_target", existingRefTable,
 							"new_target", candidate.ToTable)
-						
+
 						// Remove the existing relationship
 						var filteredRelationships []ForeignKey
 						for _, fk := range schema.Relationships {
@@ -162,7 +162,7 @@ func (se *SchemaExtractor) ExtractSchema(ctx context.Context, database string) (
 				} else {
 					existingRelationships[key] = candidate.ToTable
 				}
-				
+
 				fk := ForeignKey{
 					ConstraintName: fmt.Sprintf("data_fk_%s_%s", candidate.FromTable, candidate.FromColumn),
 					TableName:      candidate.FromTable,
@@ -221,14 +221,14 @@ func (se *SchemaExtractor) getTables(ctx context.Context, database string) ([]st
 		if err := rows.Scan(&table); err != nil {
 			return nil, err
 		}
-		
+
 		// Skip tables with obviously problematic names (temp files, backups, etc.)
 		// But allow legitimate table names that might contain dots
 		if strings.HasPrefix(table, ".") || strings.HasSuffix(table, ".tmp") || strings.HasSuffix(table, ".bak") {
 			se.logger.Warn("Skipping table with problematic name", "table", table)
 			continue
 		}
-		
+
 		tables = append(tables, table)
 	}
 	return tables, rows.Err()
@@ -478,24 +478,24 @@ func MySQLToDgraphType(mysqlType string) string {
 // IsForeignKey checks if a column is likely a foreign key based on naming conventions
 func IsForeignKey(columnName string) bool {
 	columnName = strings.ToLower(columnName)
-	
+
 	// Common foreign key naming patterns:
 	// 1. *_id (most common): user_id, customer_id, etc.
 	// 2. *_key: user_key, customer_key, etc.
 	// 3. *_ref: user_ref, customer_ref, etc.
 	// 4. id_* (less common): id_user, id_customer, etc.
 	// 5. fk_*: fk_user, fk_customer, etc.
-	
+
 	// Exclude primary key columns
 	if columnName == "id" {
 		return false
 	}
-	
+
 	return strings.HasSuffix(columnName, "_id") ||
-		   strings.HasSuffix(columnName, "_key") ||
-		   strings.HasSuffix(columnName, "_ref") ||
-		   strings.HasPrefix(columnName, "id_") ||
-		   strings.HasPrefix(columnName, "fk_")
+		strings.HasSuffix(columnName, "_key") ||
+		strings.HasSuffix(columnName, "_ref") ||
+		strings.HasPrefix(columnName, "id_") ||
+		strings.HasPrefix(columnName, "fk_")
 }
 
 // DetectForeignKeysByConvention detects foreign keys based on naming conventions and table existence
@@ -513,10 +513,10 @@ func (se *SchemaExtractor) DetectForeignKeysByConvention(ctx context.Context, sc
 		for columnName := range table.Columns {
 			if IsForeignKey(columnName) {
 				se.logger.Debug("Found potential FK column", "table", tableName, "column", columnName)
-				
+
 				// Try to infer the referenced table name using generic conventions
 				var baseName string
-				
+
 				// Extract base name based on different FK naming patterns
 				columnLower := strings.ToLower(columnName)
 				switch {
@@ -542,12 +542,12 @@ func (se *SchemaExtractor) DetectForeignKeysByConvention(ctx context.Context, sc
 				// 3. Handle compound table names with common prefixes/suffixes
 				// 4. Handle self-referential foreign keys (parent_id in same table)
 				// 5. Try with/without common prefixes found in database
-				
+
 				candidates := []string{
-					baseName,           // Direct match: user_id -> user
-					baseName + "s",     // Plural: user_id -> users
-					baseName + "es",    // Plural with 'es': category_id -> categories
-					baseName + "ies",   // Plural with 'ies': company_id -> companies
+					baseName,         // Direct match: user_id -> user
+					baseName + "s",   // Plural: user_id -> users
+					baseName + "es",  // Plural with 'es': category_id -> categories
+					baseName + "ies", // Plural with 'ies': company_id -> companies
 				}
 
 				// Handle self-referential foreign keys
@@ -572,13 +572,13 @@ func (se *SchemaExtractor) DetectForeignKeysByConvention(ctx context.Context, sc
 						// Try different combinations for compound names
 						lastPart := parts[len(parts)-1]
 						withoutLast := strings.Join(parts[:len(parts)-1], "_")
-						
+
 						candidates = append(candidates,
-							withoutLast+"_"+lastPart+"s",     // user_profile_id -> user_profiles
-							withoutLast+"_"+lastPart+"es",    // user_profile_id -> user_profilees (rare but possible)
-							strings.Join(parts, "_")+"s",     // full name + s
+							withoutLast+"_"+lastPart+"s",  // user_profile_id -> user_profiles
+							withoutLast+"_"+lastPart+"es", // user_profile_id -> user_profilees (rare but possible)
+							strings.Join(parts, "_")+"s",  // full name + s
 						)
-						
+
 						// Also try with detected prefixes
 						for _, prefix := range commonPrefixes {
 							candidates = append(candidates,
@@ -631,7 +631,7 @@ func (se *SchemaExtractor) DetectForeignKeysByConvention(ctx context.Context, sc
 // This helps detect foreign keys in databases with prefixed table names (e.g., "app_users", "app_posts")
 func (se *SchemaExtractor) detectCommonTablePrefixes(existingTables map[string]bool) []string {
 	prefixCount := make(map[string]int)
-	
+
 	// Extract potential prefixes from table names
 	for tableName := range existingTables {
 		if strings.Contains(tableName, "_") {
@@ -643,7 +643,7 @@ func (se *SchemaExtractor) detectCommonTablePrefixes(existingTables map[string]b
 			}
 		}
 	}
-	
+
 	// Only consider prefixes that appear in multiple tables (at least 2)
 	var commonPrefixes []string
 	for prefix, count := range prefixCount {
@@ -651,6 +651,6 @@ func (se *SchemaExtractor) detectCommonTablePrefixes(existingTables map[string]b
 			commonPrefixes = append(commonPrefixes, prefix)
 		}
 	}
-	
+
 	return commonPrefixes
 }

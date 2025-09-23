@@ -376,7 +376,7 @@ func (dp *DataProcessor) isForeignKey(tableName, columnName string, schema *Sche
 			foundRelationships = append(foundRelationships, fk.RefTableName)
 		}
 	}
-	
+
 	// If we found multiple relationships for the same column, log them for debugging
 	if len(foundRelationships) > 1 {
 		dp.logger.Warn("Multiple relationships found for column",
@@ -384,7 +384,7 @@ func (dp *DataProcessor) isForeignKey(tableName, columnName string, schema *Sche
 			"column", columnName,
 			"targets", foundRelationships)
 	}
-	
+
 	// Return the first (most prioritized) relationship
 	if len(foundRelationships) > 0 {
 		dp.logger.Debug("Using relationship",
@@ -399,7 +399,7 @@ func (dp *DataProcessor) isForeignKey(tableName, columnName string, schema *Sche
 		// Extract base name based on different FK naming patterns
 		var baseName string
 		columnLower := strings.ToLower(columnName)
-		
+
 		switch {
 		case strings.HasSuffix(columnLower, "_id"):
 			baseName = strings.TrimSuffix(columnLower, "_id")
@@ -417,10 +417,10 @@ func (dp *DataProcessor) isForeignKey(tableName, columnName string, schema *Sche
 
 		// Try multiple table name patterns
 		candidates := []string{
-			baseName,           // Direct match
-			baseName + "s",     // Plural
-			baseName + "es",    // Plural with 'es'
-			baseName + "ies",   // Plural with 'ies'
+			baseName,         // Direct match
+			baseName + "s",   // Plural
+			baseName + "es",  // Plural with 'es'
+			baseName + "ies", // Plural with 'ies'
 		}
 
 		// Handle self-referential foreign keys
